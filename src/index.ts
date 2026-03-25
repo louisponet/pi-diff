@@ -29,10 +29,274 @@ import * as Diff from "diff";
 import type { BundledLanguage, BundledTheme } from "shiki";
 
 // ---------------------------------------------------------------------------
+// Diff Theme System — presets, auto-derive, and per-color overrides
+//
+// Resolution chain (per color, highest priority first):
+//   1. Environment variable override (e.g. DIFF_BG_ADD="#1a3320")
+//   2. diffColors.bgAdd from .pi/settings.json (explicit per-color hex)
+//   3. diffTheme preset value (named preset like "midnight")
+//   4. Auto-derived from pi theme fg colors (default behavior)
+//   5. Hardcoded fallback
+// ---------------------------------------------------------------------------
+
+/** Hex color palette for a diff theme preset. All values "#RRGGBB". */
+interface DiffPreset {
+	name: string;
+	description: string;
+	shikiTheme?: string;
+	bgAdd?: string;
+	bgDel?: string;
+	bgAddHighlight?: string;
+	bgDelHighlight?: string;
+	bgGutterAdd?: string;
+	bgGutterDel?: string;
+	bgEmpty?: string;
+	fgAdd?: string;
+	fgDel?: string;
+	fgDim?: string;
+	fgLnum?: string;
+	fgRule?: string;
+	fgStripe?: string;
+	fgSafeMuted?: string;
+}
+
+/** User diff config read from .pi/settings.json */
+interface DiffUserConfig {
+	diffTheme?: string;
+	diffColors?: Record<string, string>;
+}
+
+const DIFF_PRESETS: Record<string, DiffPreset> = {
+	default: {
+		name: "default",
+		description: "Original pi-diff colors — tuned for dark theme bases (~#1e1e2e)",
+		bgAdd: "#162620",
+		bgDel: "#2d1919",
+		bgAddHighlight: "#234b32",
+		bgDelHighlight: "#502323",
+		bgGutterAdd: "#12201a",
+		bgGutterDel: "#261616",
+		bgEmpty: "#121212",
+		fgDim: "#505050",
+		fgLnum: "#646464",
+		fgRule: "#323232",
+		fgStripe: "#282828",
+		fgSafeMuted: "#8b949e",
+	},
+	midnight: {
+		name: "midnight",
+		description: "Subtle tints for pure black (#000000) terminal backgrounds",
+		bgAdd: "#0d1a12",
+		bgDel: "#1a0d0d",
+		bgAddHighlight: "#1a3825",
+		bgDelHighlight: "#381a1a",
+		bgGutterAdd: "#091208",
+		bgGutterDel: "#120908",
+		bgEmpty: "#080808",
+		fgDim: "#404040",
+		fgLnum: "#505050",
+		fgRule: "#282828",
+		fgStripe: "#1e1e1e",
+		fgSafeMuted: "#8b949e",
+	},
+	subtle: {
+		name: "subtle",
+		description: "Minimal backgrounds — barely-there tints for a clean look",
+		bgAdd: "#081008",
+		bgDel: "#100808",
+		bgAddHighlight: "#122818",
+		bgDelHighlight: "#281212",
+		bgGutterAdd: "#060c06",
+		bgGutterDel: "#0c0606",
+		bgEmpty: "#060606",
+		fgDim: "#383838",
+		fgLnum: "#484848",
+		fgRule: "#242424",
+		fgStripe: "#181818",
+		fgSafeMuted: "#8b949e",
+	},
+	neon: {
+		name: "neon",
+		description: "Higher contrast backgrounds for better visibility",
+		bgAdd: "#1a3320",
+		bgDel: "#331a16",
+		bgAddHighlight: "#2d5c3a",
+		bgDelHighlight: "#5c2d2d",
+		bgGutterAdd: "#142818",
+		bgGutterDel: "#28120e",
+		bgEmpty: "#141414",
+		fgDim: "#606060",
+		fgLnum: "#787878",
+		fgRule: "#404040",
+		fgStripe: "#303030",
+		fgSafeMuted: "#9da5ae",
+	},
+};
+
+/** Parse 24-bit ANSI color code → RGB. Works for both fg and bg escapes. */
+function parseAnsiRgb(ansi: string): { r: number; g: number; b: number } | null {
+	const esc = "\u001b";
+	const m = ansi.match(new RegExp(`${esc}\\[(?:38|48);2;(\\d+);(\\d+);(\\d+)m`));
+	return m ? { r: +m[1], g: +m[2], b: +m[3] } : null;
+}
+
+/** Convert "#RRGGBB" hex → ANSI 24-bit background escape. */
+function hexToBgAnsi(hex: string): string {
+	if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return "";
+	const r = Number.parseInt(hex.slice(1, 3), 16);
+	const g = Number.parseInt(hex.slice(3, 5), 16);
+	const b = Number.parseInt(hex.slice(5, 7), 16);
+	return `\x1b[48;2;${r};${g};${b}m`;
+}
+
+/** Convert "#RRGGBB" hex → ANSI 24-bit foreground escape. */
+function hexToFgAnsi(hex: string): string {
+	if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return "";
+	const r = Number.parseInt(hex.slice(1, 3), 16);
+	const g = Number.parseInt(hex.slice(3, 5), 16);
+	const b = Number.parseInt(hex.slice(5, 7), 16);
+	return `\x1b[38;2;${r};${g};${b}m`;
+}
+
+/** Derive a muted background ANSI code from a foreground ANSI code.
+ *  Scales the fg RGB by `intensity` (0.0–1.0) to produce a subtle tint. */
+function deriveBgFromFg(fgAnsi: string, intensity: number): string {
+	const rgb = parseAnsiRgb(fgAnsi);
+	if (!rgb) return "";
+	const r = Math.round(rgb.r * intensity);
+	const g = Math.round(rgb.g * intensity);
+	const b = Math.round(rgb.b * intensity);
+	return `\x1b[48;2;${r};${g};${b}m`;
+}
+
+/** Whether auto-derive from theme is still pending (runs lazily on first render). */
+let _autoDerivePending = true;
+
+/** Whether user set explicit bg config (via preset or per-color overrides). */
+let _hasExplicitBgConfig = false;
+
+/** Auto-derive all diff background colors from the pi theme's fg diff colors.
+ *  Uses different intensity levels for line bg, word highlights, and gutters. */
+function autoDeriveBgFromTheme(theme: any): void {
+	if (!theme?.getFgAnsi) return;
+	try {
+		const fgAdd = theme.getFgAnsi("toolDiffAdded");
+		const fgDel = theme.getFgAnsi("toolDiffRemoved");
+
+		// Line backgrounds — subtle tint (8–10% of fg color)
+		const bgAdd = deriveBgFromFg(fgAdd, 0.08);
+		if (bgAdd) BG_ADD = bgAdd;
+		const bgDel = deriveBgFromFg(fgDel, 0.10);
+		if (bgDel) BG_DEL = bgDel;
+
+		// Word-level highlights — more visible (20–22%)
+		const bgAddW = deriveBgFromFg(fgAdd, 0.20);
+		if (bgAddW) BG_ADD_W = bgAddW;
+		const bgDelW = deriveBgFromFg(fgDel, 0.22);
+		if (bgDelW) BG_DEL_W = bgDelW;
+
+		// Gutters — subtler than lines (5–6%)
+		const bgGA = deriveBgFromFg(fgAdd, 0.05);
+		if (bgGA) BG_GUTTER_ADD = bgGA;
+		const bgGD = deriveBgFromFg(fgDel, 0.06);
+		if (bgGD) BG_GUTTER_DEL = bgGD;
+
+		// Empty filler — neutral dark from add color luminance
+		const addRgb = parseAnsiRgb(fgAdd);
+		if (addRgb) {
+			const lum = Math.round((addRgb.r * 0.3 + addRgb.g * 0.6 + addRgb.b * 0.1) * 0.04);
+			BG_EMPTY = `\x1b[48;2;${lum};${lum};${lum}m`;
+		}
+
+		// Rebuild derived constants
+		DIVIDER = `${FG_RULE}│${RST}`;
+	} catch {
+		// Fall back to defaults silently
+	}
+}
+
+/** Load diff theme config from .pi/settings.json (project-level, then global). */
+function loadDiffConfig(): DiffUserConfig {
+	const paths = [
+		`${process.cwd()}/.pi/settings.json`,
+		`${process.env.HOME ?? ""}/.pi/settings.json`,
+	];
+	for (const p of paths) {
+		try {
+			if (existsSync(p)) {
+				const raw = JSON.parse(readFileSync(p, "utf-8"));
+				if (raw.diffTheme || raw.diffColors) {
+					return { diffTheme: raw.diffTheme, diffColors: raw.diffColors };
+				}
+			}
+		} catch {
+			// skip invalid files
+		}
+	}
+	return {};
+}
+
+/** Apply diff palette from settings → preset → (auto-derive deferred) → defaults.
+ *  Called once during extension initialization. */
+function applyDiffPalette(): void {
+	const config = loadDiffConfig();
+
+	// Load preset if specified
+	const preset = config.diffTheme ? DIFF_PRESETS[config.diffTheme] : null;
+	if (preset) _hasExplicitBgConfig = true;
+
+	// Per-color overrides from settings
+	const ov = config.diffColors ?? {};
+	if (Object.keys(ov).length > 0) _hasExplicitBgConfig = true;
+
+	// Helper: apply a hex bg color if not env-overridden
+	const applyBg = (envName: string | null, key: string, presetVal: string | undefined, set: (v: string) => void) => {
+		if (envName && process.env[envName]) return; // env override wins
+		const hex = ov[key] ?? presetVal;
+		if (hex) { const a = hexToBgAnsi(hex); if (a) set(a); }
+	};
+	// Helper: apply a hex fg color if not env-overridden
+	const applyFg = (envName: string | null, key: string, presetVal: string | undefined, set: (v: string) => void) => {
+		if (envName && process.env[envName]) return;
+		const hex = ov[key] ?? presetVal;
+		if (hex) { const a = hexToFgAnsi(hex); if (a) set(a); }
+	};
+
+	// --- Apply backgrounds ---
+	applyBg("DIFF_BG_ADD", "bgAdd", preset?.bgAdd, (v) => { BG_ADD = v; });
+	applyBg("DIFF_BG_DEL", "bgDel", preset?.bgDel, (v) => { BG_DEL = v; });
+	applyBg("DIFF_BG_ADD_HL", "bgAddHighlight", preset?.bgAddHighlight, (v) => { BG_ADD_W = v; });
+	applyBg("DIFF_BG_DEL_HL", "bgDelHighlight", preset?.bgDelHighlight, (v) => { BG_DEL_W = v; });
+	applyBg("DIFF_BG_GUTTER_ADD", "bgGutterAdd", preset?.bgGutterAdd, (v) => { BG_GUTTER_ADD = v; });
+	applyBg("DIFF_BG_GUTTER_DEL", "bgGutterDel", preset?.bgGutterDel, (v) => { BG_GUTTER_DEL = v; });
+	applyBg(null, "bgEmpty", preset?.bgEmpty, (v) => { BG_EMPTY = v; });
+
+	// --- Apply foregrounds ---
+	applyFg("DIFF_FG_ADD", "fgAdd", preset?.fgAdd, (v) => { FG_ADD = v; });
+	applyFg("DIFF_FG_DEL", "fgDel", preset?.fgDel, (v) => { FG_DEL = v; });
+	applyFg(null, "fgDim", preset?.fgDim, (v) => { FG_DIM = v; });
+	applyFg(null, "fgLnum", preset?.fgLnum, (v) => { FG_LNUM = v; });
+	applyFg(null, "fgRule", preset?.fgRule, (v) => { FG_RULE = v; });
+	applyFg(null, "fgStripe", preset?.fgStripe, (v) => { FG_STRIPE = v; });
+	applyFg(null, "fgSafeMuted", preset?.fgSafeMuted, (v) => { FG_SAFE_MUTED = v; });
+
+	// --- Shiki syntax theme ---
+	const shiki = ov.shikiTheme ?? preset?.shikiTheme;
+	if (shiki) THEME = shiki as BundledTheme;
+
+	// --- Rebuild derived constants ---
+	DIVIDER = `${FG_RULE}│${RST}`;
+	DEFAULT_DIFF_COLORS = { fgAdd: FG_ADD, fgDel: FG_DEL, fgCtx: FG_DIM };
+
+	// If no explicit bg config, auto-derive will run on first render
+	_autoDerivePending = !_hasExplicitBgConfig;
+}
+
+// ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-const THEME: BundledTheme = (process.env.DIFF_THEME as BundledTheme | undefined) ?? "github-dark";
+let THEME: BundledTheme = (process.env.DIFF_THEME as BundledTheme | undefined) ?? "github-dark";
 
 function envInt(name: string, fallback: number): number {
 	const v = Number.parseInt(process.env[name] ?? "", 10);
@@ -95,24 +359,24 @@ const DIM = "\x1b[2m";
 
 // Subtle diff backgrounds — muted tones to let syntax fg shine through
 // Override via env: DIFF_BG_ADD="#1a3320" etc. (hex "#RRGGBB" format)
-const BG_ADD = envBg("DIFF_BG_ADD", "\x1b[48;2;22;38;32m"); // muted teal-green
-const BG_DEL = envBg("DIFF_BG_DEL", "\x1b[48;2;45;25;25m"); // muted brown-red
-const BG_ADD_W = envBg("DIFF_BG_ADD_HL", "\x1b[48;2;35;75;50m"); // word-level emphasis
-const BG_DEL_W = envBg("DIFF_BG_DEL_HL", "\x1b[48;2;80;35;35m");
-const BG_GUTTER_ADD = envBg("DIFF_BG_GUTTER_ADD", "\x1b[48;2;18;32;26m");
-const BG_GUTTER_DEL = envBg("DIFF_BG_GUTTER_DEL", "\x1b[48;2;38;22;22m");
+let BG_ADD = envBg("DIFF_BG_ADD", "\x1b[48;2;22;38;32m"); // muted teal-green
+let BG_DEL = envBg("DIFF_BG_DEL", "\x1b[48;2;45;25;25m"); // muted brown-red
+let BG_ADD_W = envBg("DIFF_BG_ADD_HL", "\x1b[48;2;35;75;50m"); // word-level emphasis
+let BG_DEL_W = envBg("DIFF_BG_DEL_HL", "\x1b[48;2;80;35;35m");
+let BG_GUTTER_ADD = envBg("DIFF_BG_GUTTER_ADD", "\x1b[48;2;18;32;26m");
+let BG_GUTTER_DEL = envBg("DIFF_BG_GUTTER_DEL", "\x1b[48;2;38;22;22m");
 const BG_GUTTER_CTX = ""; // use terminal default bg for context gutters
-const BG_EMPTY = "\x1b[48;2;18;18;18m"; // filler rows when one side is shorter
+let BG_EMPTY = "\x1b[48;2;18;18;18m"; // filler rows when one side is shorter
 
 // Diff foregrounds — override via env: DIFF_FG_ADD="#50d264" etc.
-const FG_ADD = envFg("DIFF_FG_ADD", "\x1b[38;2;100;180;120m"); // desaturated green
-const FG_DEL = envFg("DIFF_FG_DEL", "\x1b[38;2;200;100;100m"); // desaturated red
-const FG_DIM = "\x1b[38;2;80;80;80m";
-const FG_LNUM = "\x1b[38;2;100;100;100m";
-const FG_RULE = "\x1b[38;2;50;50;50m";
-const FG_SAFE_MUTED = "\x1b[38;2;139;148;158m";
+let FG_ADD = envFg("DIFF_FG_ADD", "\x1b[38;2;100;180;120m"); // desaturated green
+let FG_DEL = envFg("DIFF_FG_DEL", "\x1b[38;2;200;100;100m"); // desaturated red
+let FG_DIM = "\x1b[38;2;80;80;80m";
+let FG_LNUM = "\x1b[38;2;100;100;100m";
+let FG_RULE = "\x1b[38;2;50;50;50m";
+let FG_SAFE_MUTED = "\x1b[38;2;139;148;158m";
 
-const FG_STRIPE = "\x1b[38;2;40;40;40m"; // gray diagonal stripes on terminal default bg
+let FG_STRIPE = "\x1b[38;2;40;40;40m"; // gray diagonal stripes on terminal default bg
 
 const BORDER_BAR = "▌";
 
@@ -122,7 +386,7 @@ function stripes(w: number, _rowOffset: number): string {
 	return FG_STRIPE + "╱".repeat(w) + RST;
 }
 
-const DIVIDER = `${FG_RULE}│${RST}`;
+let DIVIDER = `${FG_RULE}│${RST}`;
 const ESC_RE = "\u001b";
 const ANSI_RE = new RegExp(`${ESC_RE}\\[[0-9;]*m`, "g");
 const ANSI_CAPTURE_RE = new RegExp(`${ESC_RE}\\[([^m]*)m`, "g");
@@ -140,10 +404,17 @@ interface DiffColors {
 	fgCtx: string;
 }
 
-const DEFAULT_DIFF_COLORS: DiffColors = { fgAdd: FG_ADD, fgDel: FG_DEL, fgCtx: FG_DIM };
+let DEFAULT_DIFF_COLORS: DiffColors = { fgAdd: FG_ADD, fgDel: FG_DEL, fgCtx: FG_DIM };
 
-/** Resolve diff fg colors from theme (if available), falling back to hardcoded ANSI. */
+/** Resolve diff fg colors from theme (if available), falling back to hardcoded ANSI.
+ *  On first call with a valid theme, auto-derives bg colors if no explicit config was set. */
 function resolveDiffColors(theme?: any): DiffColors {
+	// Auto-derive bg colors from theme on first render (if no explicit preset/overrides)
+	if (_autoDerivePending && theme?.getFgAnsi) {
+		autoDeriveBgFromTheme(theme);
+		_autoDerivePending = false;
+	}
+
 	if (!theme?.getFgAnsi) return DEFAULT_DIFF_COLORS;
 	try {
 		const fgAdd = theme.getFgAnsi("toolDiffAdded") || FG_ADD;
@@ -948,6 +1219,9 @@ export const __testing = {
 };
 
 export default function diffRendererExtension(pi: any): void {
+	// Apply diff theme palette from settings/presets before rendering
+	applyDiffPalette();
+
 	let createWriteTool: any, createEditTool: any, TextComponent: any;
 	try {
 		const sdk = require("@mariozechner/pi-coding-agent");

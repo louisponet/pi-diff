@@ -76,7 +76,76 @@ Both views show:
 
 ## Configuration
 
-All settings are controlled via environment variables. Add them to your shell profile or `.envrc`:
+### Diff Theme Presets
+
+pi-diff ships with built-in theme presets optimized for different terminal backgrounds. Add to your `.pi/settings.json`:
+
+```json
+{
+  "theme": "dark",
+  "diffTheme": "midnight"
+}
+```
+
+| Preset | Best for | Description |
+|--------|----------|-------------|
+| `default` | Dark theme bases (~`#1e1e2e`) | Original pi-diff colors — balanced contrast |
+| `midnight` | Pure black (`#000000`) terminals | Subtle tints that don't overwhelm on black |
+| `subtle` | Any dark theme | Minimal backgrounds — barely-there tints for a clean look |
+| `neon` | Low-contrast displays | Higher contrast backgrounds for better visibility |
+
+### Per-Color Overrides
+
+Override individual diff colors in `.pi/settings.json` using hex `#RRGGBB` values:
+
+```json
+{
+  "theme": "dark",
+  "diffTheme": "midnight",
+  "diffColors": {
+    "bgAdd": "#0d1a12",
+    "bgDel": "#1a0d0d",
+    "bgAddHighlight": "#1a3825",
+    "bgDelHighlight": "#381a1a",
+    "bgGutterAdd": "#091208",
+    "bgGutterDel": "#120908",
+    "bgEmpty": "#080808",
+    "fgAdd": "#64b478",
+    "fgDel": "#c86464",
+    "fgDim": "#404040",
+    "fgLnum": "#505050",
+    "fgRule": "#282828",
+    "fgStripe": "#1e1e1e",
+    "fgSafeMuted": "#8b949e",
+    "shikiTheme": "github-dark"
+  }
+}
+```
+
+`diffColors` overrides take priority over `diffTheme` presets, so you can start from a preset and tweak individual colors.
+
+### Auto-Derive (Default Behavior)
+
+When no `diffTheme` or `diffColors` is set, pi-diff **automatically derives** background colors from your pi theme's diff foreground colors. This ensures diffs look good with any pi theme and terminal background — no configuration needed.
+
+The auto-derive uses different intensity levels:
+- **Line backgrounds**: 8–10% of the theme's diff fg color (subtle tint)
+- **Word highlights**: 20–22% (more visible for changed characters)
+- **Gutters**: 5–6% (subtler than line backgrounds)
+
+### Color Resolution Order
+
+For each color, pi-diff checks (highest priority first):
+
+1. **Environment variable** — e.g. `DIFF_BG_ADD="#1a3320"` (backward compatible)
+2. **`diffColors`** from `.pi/settings.json` (per-color hex overrides)
+3. **`diffTheme` preset** from `.pi/settings.json` (named preset bundle)
+4. **Auto-derived** from pi theme's `toolDiffAdded`/`toolDiffRemoved` colors
+5. **Hardcoded fallback** (original defaults)
+
+### Environment Variables
+
+All settings are also controllable via environment variables. Add them to your shell profile or `.envrc`:
 
 ### Theme
 
