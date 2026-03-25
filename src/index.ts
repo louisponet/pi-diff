@@ -400,7 +400,7 @@ const BORDER_BAR = "▌";
 /** Generate a dense diagonal stripe fill for empty filler cells.
  *  Solid ╱ characters — uniform direction like CSS diagonal hatching. */
 function stripes(w: number, _rowOffset: number): string {
-	return FG_STRIPE + "╱".repeat(w) + RST;
+	return BG_BASE + FG_STRIPE + "╱".repeat(w) + RST;
 }
 
 let DIVIDER = `${FG_RULE}│${RST}`;
@@ -665,7 +665,7 @@ function summarize(a: number, d: number): string {
 }
 
 function rule(w: number): string {
-	return `${FG_RULE}${"─".repeat(w)}${RST}`;
+	return `${BG_BASE}${FG_RULE}${"─".repeat(w)}${RST}`;
 }
 
 /**
@@ -1002,7 +1002,7 @@ async function renderUnified(
 			const pad = Math.max(0, totalW - label.length - 2);
 			const half1 = Math.floor(pad / 2),
 				half2 = pad - half1;
-			out.push(`${FG_DIM}${"─".repeat(half1)}${label}${"─".repeat(half2)}${RST}`);
+			out.push(`${BG_BASE}${FG_DIM}${"─".repeat(half1)}${label}${"─".repeat(half2)}${RST}`);
 			idx++;
 			continue;
 		}
@@ -1062,7 +1062,7 @@ async function renderUnified(
 
 	out.push(rule(tw));
 	if (diff.lines.length > vis.length) {
-		out.push(`${FG_DIM}  … ${diff.lines.length - vis.length} more lines${RST}`);
+		out.push(`${BG_BASE}${FG_DIM}  … ${diff.lines.length - vis.length} more lines${RST}`);
 	}
 	return out.join("\n");
 }
@@ -1148,8 +1148,8 @@ async function renderSplit(
 		if (line.type === "sep") {
 			const gap = line.newNum;
 			const label = gap && gap > 0 ? `··· ${gap} lines ···` : "···";
-			const g = ` ${FG_DIM}${fit("", nw + 2)}${RST}${FG_RULE}│${RST} `;
-			return { gutter: g, contGutter: g, bodyRows: [`${FG_DIM}${fit(label, cw)}${RST}`] };
+			const g = `${BG_BASE} ${FG_DIM}${fit("", nw + 2)}${RST}${FG_RULE}│${RST} `;
+			return { gutter: g, contGutter: g, bodyRows: [`${BG_BASE}${FG_DIM}${fit(label, cw)}${RST}`] };
 		}
 
 		const isDel = line.type === "del",
@@ -1182,9 +1182,9 @@ async function renderSplit(
 
 	const out: string[] = [];
 	// Column headers — "old" / "new" positioned above line numbers
-	const hdrOld = `${" ".repeat(Math.max(0, nw - 2))}${dc.fgDel}${DIM}old${RST}`;
-	const hdrNew = `${" ".repeat(Math.max(0, nw - 2))}${dc.fgAdd}${DIM}new${RST}`;
-	out.push(`${hdrOld}${" ".repeat(Math.max(0, half - nw - 1))}${FG_RULE}┊${RST}${hdrNew}`);
+	const hdrOld = `${BG_BASE}${" ".repeat(Math.max(0, nw - 2))}${dc.fgDel}${DIM}old${RST}`;
+	const hdrNew = `${BG_BASE}${" ".repeat(Math.max(0, nw - 2))}${dc.fgAdd}${DIM}new${RST}`;
+	out.push(`${BG_BASE}${hdrOld}${" ".repeat(Math.max(0, half - nw - 1))}${FG_RULE}┊${RST}${hdrNew}`);
 	out.push(`${rule(half)}${FG_RULE}┊${RST}${rule(half)}`);
 
 	for (const r of vis) {
@@ -1230,7 +1230,7 @@ async function renderSplit(
 
 	out.push(`${rule(half)}${FG_RULE}┊${RST}${rule(half)}`);
 	if (rows.length > vis.length) {
-		out.push(`${FG_DIM}  … ${rows.length - vis.length} more lines${RST}`);
+		out.push(`${BG_BASE}${FG_DIM}  … ${rows.length - vis.length} more lines${RST}`);
 	}
 	return out.join("\n");
 }
