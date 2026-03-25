@@ -225,6 +225,10 @@ function autoDeriveBgFromTheme(theme: any): void {
 		// Empty filler and context — match the base
 		BG_EMPTY = BG_BASE;
 
+		// Update RST to re-apply base bg after every reset — prevents black
+		// flashes between styled segments when toolSuccessBg is non-black
+		RST = `\x1b[0m${BG_BASE}`;
+
 		// Rebuild derived constants
 		DIVIDER = `${FG_RULE}│${RST}`;
 	} catch {
@@ -370,7 +374,7 @@ const MAX_WRAP_ROWS_NARROW = 1; // <120 cols (truncate, no wrap)
 // ANSI
 // ---------------------------------------------------------------------------
 
-const RST = "\x1b[0m";
+let RST = "\x1b[0m";
 const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 
@@ -433,7 +437,10 @@ function resolveDiffColors(theme?: any): DiffColors {
 		try {
 			const bgAnsi = theme.getBgAnsi("toolSuccessBg");
 			const parsed = parseAnsiRgb(bgAnsi);
-			if (parsed) BG_BASE = bgAnsi;
+			if (parsed) {
+				BG_BASE = bgAnsi;
+				RST = `\x1b[0m${BG_BASE}`;
+			}
 		} catch { /* ignore */ }
 	}
 
