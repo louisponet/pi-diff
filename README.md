@@ -1,5 +1,8 @@
 # pi-diff
 
+[![npm version](https://img.shields.io/npm/v/@heyhuynhgiabuu/pi-diff)](https://www.npmjs.com/package/@heyhuynhgiabuu/pi-diff)
+[![GitHub release](https://img.shields.io/github/v/release/heyhuynhgiabuu/pi-diff)](https://github.com/heyhuynhgiabuu/pi-diff/releases/latest)
+
 A [pi](https://pi.dev) extension that replaces the default `write` and `edit` tool output with **Shiki-powered, syntax-highlighted diffs** — side-by-side split view, unified stacked view, and word-level change emphasis, all rendered directly in your terminal.
 
 > **Status:** Early release.
@@ -29,6 +32,8 @@ A [pi](https://pi.dev) extension that replaces the default `write` and `edit` to
 ```bash
 pi install npm:@heyhuynhgiabuu/pi-diff
 ```
+
+Latest release: https://github.com/heyhuynhgiabuu/pi-diff/releases/latest
 
 Or load directly for development:
 
