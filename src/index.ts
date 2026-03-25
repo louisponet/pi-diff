@@ -60,30 +60,30 @@ function envBg(name: string, fallback: string): string {
 // --- Split-view thresholds ---
 // Split is preferred when there's real room. At narrow widths, a clean stacked
 // (unified) view is better than a cramped split with wrapping.
-const SPLIT_MIN_WIDTH = envInt("DIFF_SPLIT_MIN_WIDTH", 150);          // need ≥150 cols for split to breathe
+const SPLIT_MIN_WIDTH = envInt("DIFF_SPLIT_MIN_WIDTH", 150); // need ≥150 cols for split to breathe
 const SPLIT_MIN_CODE_WIDTH = envInt("DIFF_SPLIT_MIN_CODE_WIDTH", 60); // ≥60 code cols per side
-const SPLIT_MAX_WRAP_RATIO = 0.20;      // if >20% lines wrap in split, fall back to stacked
-const SPLIT_MAX_WRAP_LINES = 8;         // absolute cap before unified fallback
+const SPLIT_MAX_WRAP_RATIO = 0.2; // if >20% lines wrap in split, fall back to stacked
+const SPLIT_MAX_WRAP_LINES = 8; // absolute cap before unified fallback
 
 // --- Terminal bounds ---
-const MAX_TERM_WIDTH = 210;             // max for 1728px wide display (~205 cols at typical font)
-const DEFAULT_TERM_WIDTH = 200;         // safe default for 1728x1117 resolution
+const MAX_TERM_WIDTH = 210; // max for 1728px wide display (~205 cols at typical font)
+const DEFAULT_TERM_WIDTH = 200; // safe default for 1728x1117 resolution
 
 // --- Rendering limits ---
-const MAX_PREVIEW_LINES = 60;           // was 50 — show slightly more context in edit preview
-const MAX_RENDER_LINES = 150;           // was 120 — show more of the diff in write tool
-const MAX_HL_CHARS = 80_000;            // was 50k — allow syntax hl for larger diffs
-const CACHE_LIMIT = 192;               // was 128 — bigger cache for multi-file sessions
+const MAX_PREVIEW_LINES = 60; // was 50 — show slightly more context in edit preview
+const MAX_RENDER_LINES = 150; // was 120 — show more of the diff in write tool
+const MAX_HL_CHARS = 80_000; // was 50k — allow syntax hl for larger diffs
+const CACHE_LIMIT = 192; // was 128 — bigger cache for multi-file sessions
 
 // --- Word diff ---
-const WORD_DIFF_MIN_SIM = 0.15;        // was 0.2 — show word diffs for slightly less similar lines
+const WORD_DIFF_MIN_SIM = 0.15; // was 0.2 — show word diffs for slightly less similar lines
 
 // --- Wrapping ---
 // Adaptive: narrow terminals truncate aggressively, wide terminals allow wrapping.
 // Actual wrap rows are computed per-render via adaptiveWrapRows().
-const MAX_WRAP_ROWS_WIDE = 3;          // ≥180 cols
-const MAX_WRAP_ROWS_MED  = 2;          // 120–179 cols
-const MAX_WRAP_ROWS_NARROW = 1;        // <120 cols (truncate, no wrap)
+const MAX_WRAP_ROWS_WIDE = 3; // ≥180 cols
+const MAX_WRAP_ROWS_MED = 2; // 120–179 cols
+const MAX_WRAP_ROWS_NARROW = 1; // <120 cols (truncate, no wrap)
 
 // ---------------------------------------------------------------------------
 // ANSI
@@ -95,19 +95,19 @@ const DIM = "\x1b[2m";
 
 // Subtle diff backgrounds — muted tones to let syntax fg shine through
 // Override via env: DIFF_BG_ADD="#1a3320" etc. (hex "#RRGGBB" format)
-const BG_ADD   = envBg("DIFF_BG_ADD",    "\x1b[48;2;22;38;32m");      // muted teal-green
-const BG_DEL   = envBg("DIFF_BG_DEL",    "\x1b[48;2;45;25;25m");      // muted brown-red
-const BG_ADD_W = envBg("DIFF_BG_ADD_HL", "\x1b[48;2;35;75;50m");      // word-level emphasis
+const BG_ADD = envBg("DIFF_BG_ADD", "\x1b[48;2;22;38;32m"); // muted teal-green
+const BG_DEL = envBg("DIFF_BG_DEL", "\x1b[48;2;45;25;25m"); // muted brown-red
+const BG_ADD_W = envBg("DIFF_BG_ADD_HL", "\x1b[48;2;35;75;50m"); // word-level emphasis
 const BG_DEL_W = envBg("DIFF_BG_DEL_HL", "\x1b[48;2;80;35;35m");
 const BG_GUTTER_ADD = envBg("DIFF_BG_GUTTER_ADD", "\x1b[48;2;18;32;26m");
 const BG_GUTTER_DEL = envBg("DIFF_BG_GUTTER_DEL", "\x1b[48;2;38;22;22m");
-const BG_GUTTER_CTX = "";  // use terminal default bg for context gutters
-const BG_EMPTY = "\x1b[48;2;18;18;18m";     // filler rows when one side is shorter
+const BG_GUTTER_CTX = ""; // use terminal default bg for context gutters
+const BG_EMPTY = "\x1b[48;2;18;18;18m"; // filler rows when one side is shorter
 
 // Diff foregrounds — override via env: DIFF_FG_ADD="#50d264" etc.
-const FG_ADD  = envFg("DIFF_FG_ADD",  "\x1b[38;2;100;180;120m");      // desaturated green
-const FG_DEL  = envFg("DIFF_FG_DEL",  "\x1b[38;2;200;100;100m");      // desaturated red
-const FG_DIM  = "\x1b[38;2;80;80;80m";
+const FG_ADD = envFg("DIFF_FG_ADD", "\x1b[38;2;100;180;120m"); // desaturated green
+const FG_DEL = envFg("DIFF_FG_DEL", "\x1b[38;2;200;100;100m"); // desaturated red
+const FG_DIM = "\x1b[38;2;80;80;80m";
 const FG_LNUM = "\x1b[38;2;100;100;100m";
 const FG_RULE = "\x1b[38;2;50;50;50m";
 const FG_SAFE_MUTED = "\x1b[38;2;139;148;158m";
@@ -123,7 +123,10 @@ function stripes(w: number, _rowOffset: number): string {
 }
 
 const DIVIDER = `${FG_RULE}│${RST}`;
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const ESC_RE = "\u001b";
+const ANSI_RE = new RegExp(`${ESC_RE}\\[[0-9;]*m`, "g");
+const ANSI_CAPTURE_RE = new RegExp(`${ESC_RE}\\[([^m]*)m`, "g");
+const ANSI_PARAM_CAPTURE_RE = new RegExp(`${ESC_RE}\\[([0-9;]*)m`, "g");
 const BG_DEFAULT = "\x1b[49m"; // reset to terminal default background
 
 // ---------------------------------------------------------------------------
@@ -186,16 +189,21 @@ interface ParsedDiff {
 // Utilities
 // ---------------------------------------------------------------------------
 
-function strip(s: string): string { return s.replace(ANSI_RE, ""); }
+function strip(s: string): string {
+	return s.replace(ANSI_RE, "");
+}
 
-function tabs(s: string): string { return s.replace(/\t/g, "  "); }
+function tabs(s: string): string {
+	return s.replace(/\t/g, "  ");
+}
 
 function termW(): number {
 	// Try multiple sources — process.stdout.columns may be undefined in piped/subagent contexts
-	const raw = process.stdout.columns
-		|| (process.stderr as any).columns
-		|| Number.parseInt(process.env.COLUMNS ?? "", 10)
-		|| DEFAULT_TERM_WIDTH;
+	const raw =
+		process.stdout.columns ||
+		(process.stderr as any).columns ||
+		Number.parseInt(process.env.COLUMNS ?? "", 10) ||
+		DEFAULT_TERM_WIDTH;
 	return Math.max(80, Math.min(raw - 4, MAX_TERM_WIDTH)); // -4 safety margin for pi TUI padding
 }
 
@@ -206,27 +214,39 @@ function fit(s: string, w: number): string {
 	if (plain.length <= w) return s + " ".repeat(w - plain.length);
 	// Truncated — show content + dim › indicator
 	const showW = w > 2 ? w - 1 : w;
-	let vis = 0, i = 0;
+	let vis = 0,
+		i = 0;
 	while (i < s.length && vis < showW) {
-		if (s[i] === "\x1b") { const e = s.indexOf("m", i); if (e !== -1) { i = e + 1; continue; } }
-		vis++; i++;
+		if (s[i] === "\x1b") {
+			const e = s.indexOf("m", i);
+			if (e !== -1) {
+				i = e + 1;
+				continue;
+			}
+		}
+		vis++;
+		i++;
 	}
-	return w > 2
-		? s.slice(0, i) + RST + FG_DIM + "›" + RST
-		: s.slice(0, i) + RST;
+	return w > 2 ? `${s.slice(0, i)}${RST}${FG_DIM}›${RST}` : `${s.slice(0, i)}${RST}`;
 }
 
 /** Extract last active fg + bg ANSI codes from a string. Used for wrapping continuations. */
 function ansiState(s: string): string {
-	let fg = "", bg = "";
-	const re = /\x1b\[([^m]*)m/g;
-	let m: RegExpExecArray | null;
-	while ((m = re.exec(s)) !== null) {
-		const p = m[1];
-		if (p === "0") { fg = ""; bg = ""; }
-		else if (p === "39") { fg = ""; }
-		else if (p.startsWith("38;")) { fg = m[0]; }
-		else if (p.startsWith("48;")) { bg = m[0]; }
+	let fg = "",
+		bg = "";
+	for (const match of s.matchAll(ANSI_CAPTURE_RE)) {
+		const p = match[1] ?? "";
+		const seq = match[0] ?? "";
+		if (p === "0") {
+			fg = "";
+			bg = "";
+		} else if (p === "39") {
+			fg = "";
+		} else if (p.startsWith("38;")) {
+			fg = seq;
+		} else if (p.startsWith("48;")) {
+			bg = seq;
+		}
 	}
 	return bg + fg;
 }
@@ -238,14 +258,14 @@ function isLowContrastShikiFg(params: string): boolean {
 	const parts = params.split(";").map(Number);
 	if (parts.length !== 5 || parts.some((n) => !Number.isFinite(n))) return false;
 	const [, , r, g, b] = parts;
-	const luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+	const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
 	return luminance < 72;
 }
 
 function normalizeShikiContrast(ansi: string): string {
-	return ansi.replace(/\x1b\[([0-9;]*)m/g, (seq, params: string) => (
-		isLowContrastShikiFg(params) ? FG_SAFE_MUTED : seq
-	));
+	return ansi.replace(ANSI_PARAM_CAPTURE_RE, (seq, params: string) =>
+		isLowContrastShikiFg(params) ? FG_SAFE_MUTED : seq,
+	);
 }
 
 /** Wrap ANSI-encoded string into rows of `w` visible chars. Max `maxRows` rows; last row truncates with ›. */
@@ -258,7 +278,9 @@ function wrapAnsi(s: string, w: number, maxRows = adaptiveWrapRows(), fillBg = "
 	}
 
 	const rows: string[] = [];
-	let row = "", vis = 0, i = 0;
+	let row = "",
+		vis = 0,
+		i = 0;
 	let onLastRow = false;
 	let effW = w;
 
@@ -272,7 +294,11 @@ function wrapAnsi(s: string, w: number, maxRows = adaptiveWrapRows(), fillBg = "
 		// Pass through ANSI escapes
 		if (s[i] === "\x1b") {
 			const end = s.indexOf("m", i);
-			if (end !== -1) { row += s.slice(i, end + 1); i = end + 1; continue; }
+			if (end !== -1) {
+				row += s.slice(i, end + 1);
+				i = end + 1;
+				continue;
+			}
 		}
 
 		// Row full
@@ -281,10 +307,17 @@ function wrapAnsi(s: string, w: number, maxRows = adaptiveWrapRows(), fillBg = "
 				// Check if remaining string has visible chars
 				let hasMore = false;
 				for (let j = i; j < s.length; j++) {
-					if (s[j] === "\x1b") { const e2 = s.indexOf("m", j); if (e2 !== -1) { j = e2; continue; } }
-					hasMore = true; break;
+					if (s[j] === "\x1b") {
+						const e2 = s.indexOf("m", j);
+						if (e2 !== -1) {
+							j = e2;
+							continue;
+						}
+					}
+					hasMore = true;
+					break;
 				}
-				if (hasMore && w > 2) row += RST + FG_DIM + "›" + RST;
+				if (hasMore && w > 2) row += `${RST}${FG_DIM}›${RST}`;
 				else row += fillBg + " ".repeat(Math.max(0, w - vis)) + RST;
 				rows.push(row);
 				return rows;
@@ -294,10 +327,15 @@ function wrapAnsi(s: string, w: number, maxRows = adaptiveWrapRows(), fillBg = "
 			rows.push(row + RST);
 			row = state + fillBg;
 			vis = 0;
-			if (rows.length >= maxRows - 1) { onLastRow = true; effW = w > 2 ? w - 1 : w; }
+			if (rows.length >= maxRows - 1) {
+				onLastRow = true;
+				effW = w > 2 ? w - 1 : w;
+			}
 		}
 
-		row += s[i]; vis++; i++;
+		row += s[i];
+		vis++;
+		i++;
 	}
 
 	// Final row, padded
@@ -341,7 +379,7 @@ function shouldUseSplit(diff: ParsedDiff, tw: number, maxRows = MAX_PREVIEW_LINE
 	if (!diff.lines.length) return false;
 	if (tw < SPLIT_MIN_WIDTH) return false;
 
-	const nw = Math.max(2, String(Math.max(...diff.lines.map(l => l.oldNum ?? l.newNum ?? 0), 0)).length);
+	const nw = Math.max(2, String(Math.max(...diff.lines.map((l) => l.oldNum ?? l.newNum ?? 0), 0)).length);
 	const half = Math.floor((tw - 1) / 2); // -1 for center divider
 	const gw = nw + 5; // border + num + sign + sp + │ + sp
 	const cw = Math.max(12, half - gw);
@@ -369,16 +407,43 @@ function shouldUseSplit(diff: ParsedDiff, tw: number, maxRows = MAX_PREVIEW_LINE
 // ---------------------------------------------------------------------------
 
 const EXT_LANG: Record<string, BundledLanguage> = {
-	ts: "typescript", tsx: "tsx", js: "javascript", jsx: "jsx",
-	mjs: "javascript", cjs: "javascript",
-	py: "python", rb: "ruby", rs: "rust", go: "go", java: "java",
-	c: "c", cpp: "cpp", h: "c", hpp: "cpp", cs: "csharp",
-	swift: "swift", kt: "kotlin",
-	html: "html", css: "css", scss: "scss",
-	json: "json", yaml: "yaml", yml: "yaml", toml: "toml",
-	md: "markdown", sql: "sql", sh: "bash", bash: "bash", zsh: "bash",
-	lua: "lua", php: "php", dart: "dart", xml: "xml",
-	graphql: "graphql", svelte: "svelte", vue: "vue",
+	ts: "typescript",
+	tsx: "tsx",
+	js: "javascript",
+	jsx: "jsx",
+	mjs: "javascript",
+	cjs: "javascript",
+	py: "python",
+	rb: "ruby",
+	rs: "rust",
+	go: "go",
+	java: "java",
+	c: "c",
+	cpp: "cpp",
+	h: "c",
+	hpp: "cpp",
+	cs: "csharp",
+	swift: "swift",
+	kt: "kotlin",
+	html: "html",
+	css: "css",
+	scss: "scss",
+	json: "json",
+	yaml: "yaml",
+	yml: "yaml",
+	toml: "toml",
+	md: "markdown",
+	sql: "sql",
+	sh: "bash",
+	bash: "bash",
+	zsh: "bash",
+	lua: "lua",
+	php: "php",
+	dart: "dart",
+	xml: "xml",
+	graphql: "graphql",
+	svelte: "svelte",
+	vue: "vue",
 };
 
 function lang(fp: string): BundledLanguage | undefined {
@@ -396,7 +461,8 @@ codeToANSI("", "typescript", THEME).catch(() => {});
 const _cache = new Map<string, string[]>();
 
 function _touch(k: string, v: string[]): string[] {
-	_cache.delete(k); _cache.set(k, v);
+	_cache.delete(k);
+	_cache.set(k, v);
 	while (_cache.size > CACHE_LIMIT) {
 		const first = _cache.keys().next().value;
 		if (first === undefined) break;
@@ -429,7 +495,8 @@ async function hlBlock(code: string, language: BundledLanguage | undefined): Pro
 function parseDiff(oldContent: string, newContent: string, ctx = 3): ParsedDiff {
 	const patch = Diff.structuredPatch("", "", oldContent, newContent, "", "", { context: ctx });
 	const lines: DiffLine[] = [];
-	let added = 0, removed = 0;
+	let added = 0,
+		removed = 0;
 
 	for (let hi = 0; hi < patch.hunks.length; hi++) {
 		if (hi > 0) {
@@ -438,13 +505,21 @@ function parseDiff(oldContent: string, newContent: string, ctx = 3): ParsedDiff 
 			lines.push({ type: "sep", oldNum: null, newNum: gap > 0 ? gap : null, content: "" });
 		}
 		const h = patch.hunks[hi];
-		let oL = h.oldStart, nL = h.newStart;
+		let oL = h.oldStart,
+			nL = h.newStart;
 		for (const raw of h.lines) {
 			if (raw === "\\ No newline at end of file") continue;
-			const ch = raw[0], text = raw.slice(1);
-			if (ch === "+") { lines.push({ type: "add", oldNum: null, newNum: nL++, content: text }); added++; }
-			else if (ch === "-") { lines.push({ type: "del", oldNum: oL++, newNum: null, content: text }); removed++; }
-			else { lines.push({ type: "ctx", oldNum: oL++, newNum: nL++, content: text }); }
+			const ch = raw[0],
+				text = raw.slice(1);
+			if (ch === "+") {
+				lines.push({ type: "add", oldNum: null, newNum: nL++, content: text });
+				added++;
+			} else if (ch === "-") {
+				lines.push({ type: "del", oldNum: oL++, newNum: null, content: text });
+				removed++;
+			} else {
+				lines.push({ type: "ctx", oldNum: oL++, newNum: nL++, content: text });
+			}
 		}
 	}
 	return { lines, added, removed, chars: oldContent.length + newContent.length };
@@ -464,7 +539,10 @@ function parseDiff(oldContent: string, newContent: string, ctx = 3): ParsedDiff 
  * similarity score and character ranges for emphasis highlighting.
  * Replaces separate wordDiffRanges + wordDiffSimilarity (which called diffWords twice).
  */
-function wordDiffAnalysis(a: string, b: string): {
+function wordDiffAnalysis(
+	a: string,
+	b: string,
+): {
 	similarity: number;
 	oldRanges: Array<[number, number]>;
 	newRanges: Array<[number, number]>;
@@ -473,11 +551,22 @@ function wordDiffAnalysis(a: string, b: string): {
 	const parts = Diff.diffWords(a, b);
 	const oldRanges: Array<[number, number]> = [];
 	const newRanges: Array<[number, number]> = [];
-	let oPos = 0, nPos = 0, same = 0;
+	let oPos = 0,
+		nPos = 0,
+		same = 0;
 	for (const p of parts) {
-		if (p.removed) { oldRanges.push([oPos, oPos + p.value.length]); oPos += p.value.length; }
-		else if (p.added) { newRanges.push([nPos, nPos + p.value.length]); nPos += p.value.length; }
-		else { const len = p.value.length; same += len; oPos += len; nPos += len; }
+		if (p.removed) {
+			oldRanges.push([oPos, oPos + p.value.length]);
+			oPos += p.value.length;
+		} else if (p.added) {
+			newRanges.push([nPos, nPos + p.value.length]);
+			nPos += p.value.length;
+		} else {
+			const len = p.value.length;
+			same += len;
+			oPos += len;
+			nPos += len;
+		}
 	}
 	const maxLen = Math.max(a.length, b.length);
 	return { similarity: maxLen > 0 ? same / maxLen : 1, oldRanges, newRanges };
@@ -490,12 +579,7 @@ function wordDiffAnalysis(a: string, b: string): {
  *
  * Uses sorted-range pointer scan instead of Set (avoids O(totalChars) Set creation).
  */
-function injectBg(
-	ansiLine: string,
-	ranges: Array<[number, number]>,
-	baseBg: string,
-	hlBg: string,
-): string {
+function injectBg(ansiLine: string, ranges: Array<[number, number]>, baseBg: string, hlBg: string): string {
 	if (!ranges.length) return baseBg + ansiLine + RST;
 
 	let out = baseBg;
@@ -519,9 +603,13 @@ function injectBg(
 		// Advance past exhausted ranges
 		while (ri < ranges.length && vis >= ranges[ri][1]) ri++;
 		const want = ri < ranges.length && vis >= ranges[ri][0] && vis < ranges[ri][1];
-		if (want !== inHL) { inHL = want; out += inHL ? hlBg : baseBg; }
+		if (want !== inHL) {
+			inHL = want;
+			out += inHL ? hlBg : baseBg;
+		}
 		out += ansiLine[i];
-		vis++; i++;
+		vis++;
+		i++;
 	}
 	return out + RST;
 }
@@ -529,11 +617,15 @@ function injectBg(
 /** Simple word diff (no syntax hl) — fallback when Shiki isn't available. */
 function plainWordDiff(oldText: string, newText: string): { old: string; new: string } {
 	const parts = Diff.diffWords(oldText, newText);
-	let o = "", n = "";
+	let o = "",
+		n = "";
 	for (const p of parts) {
 		if (p.removed) o += `${BG_DEL_W}${p.value}${RST}${BG_DEL}`;
 		else if (p.added) n += `${BG_ADD_W}${p.value}${RST}${BG_ADD}`;
-		else { o += p.value; n += p.value; }
+		else {
+			o += p.value;
+			n += p.value;
+		}
 	}
 	return { old: o, new: n };
 }
@@ -549,18 +641,24 @@ function plainWordDiff(oldText: string, newText: string): { old: string; new: st
 //   • Paired del/add lines adjacent with word-level emphasis
 // ---------------------------------------------------------------------------
 
-async function renderUnified(diff: ParsedDiff, language: BundledLanguage | undefined, max = MAX_RENDER_LINES, dc: DiffColors = DEFAULT_DIFF_COLORS): Promise<string> {
+async function renderUnified(
+	diff: ParsedDiff,
+	language: BundledLanguage | undefined,
+	max = MAX_RENDER_LINES,
+	dc: DiffColors = DEFAULT_DIFF_COLORS,
+): Promise<string> {
 	if (!diff.lines.length) return "";
 
 	const vis = diff.lines.slice(0, max);
 	const tw = termW();
-	const nw = Math.max(2, String(Math.max(...vis.map(l => l.oldNum ?? l.newNum ?? 0), 0)).length);
+	const nw = Math.max(2, String(Math.max(...vis.map((l) => l.oldNum ?? l.newNum ?? 0), 0)).length);
 	const gw = nw + 5; // border + num + sign + sp + │ + sp
 	const cw = Math.max(20, tw - gw);
 	const canHL = diff.chars <= MAX_HL_CHARS && vis.length <= MAX_RENDER_LINES;
 
 	// Build separate old/new code blocks for highlighting
-	const oldSrc: string[] = [], newSrc: string[] = [];
+	const oldSrc: string[] = [],
+		newSrc: string[] = [];
 	for (const l of vis) {
 		if (l.type === "ctx" || l.type === "del") oldSrc.push(l.content);
 		if (l.type === "ctx" || l.type === "add") newSrc.push(l.content);
@@ -569,12 +667,21 @@ async function renderUnified(diff: ParsedDiff, language: BundledLanguage | undef
 		? await Promise.all([hlBlock(oldSrc.join("\n"), language), hlBlock(newSrc.join("\n"), language)])
 		: [oldSrc, newSrc];
 
-	let oI = 0, nI = 0, idx = 0;
+	let oI = 0,
+		nI = 0,
+		idx = 0;
 	const out: string[] = [];
 	out.push(rule(tw));
 
 	/** Emit a single stacked row with compact gutter + left border bar. */
-	function emitRow(num: number | null, sign: string, gutterBg: string, signFg: string, body: string, bodyBg = ""): void {
+	function emitRow(
+		num: number | null,
+		sign: string,
+		gutterBg: string,
+		signFg: string,
+		body: string,
+		bodyBg = "",
+	): void {
 		const borderFg = sign === "-" ? dc.fgDel : sign === "+" ? dc.fgAdd : "";
 		const border = borderFg ? `${borderFg}${BORDER_BAR}${RST}` : `${BG_DEFAULT} `;
 		const numFg = borderFg || FG_LNUM;
@@ -594,28 +701,35 @@ async function renderUnified(diff: ParsedDiff, language: BundledLanguage | undef
 			const label = gap && gap > 0 ? ` ${gap} unmodified lines ` : "···";
 			const totalW = Math.min(tw, 72);
 			const pad = Math.max(0, totalW - label.length - 2);
-			const half1 = Math.floor(pad / 2), half2 = pad - half1;
+			const half1 = Math.floor(pad / 2),
+				half2 = pad - half1;
 			out.push(`${FG_DIM}${"─".repeat(half1)}${label}${"─".repeat(half2)}${RST}`);
-			idx++; continue;
+			idx++;
+			continue;
 		}
 
 		// Context line — dimmed, single line number
 		if (l.type === "ctx") {
 			const hl = oldHL[oI] ?? l.content;
 			emitRow(l.newNum, " ", BG_DEFAULT, dc.fgCtx, `${BG_DEFAULT}${DIM}${hl}`, BG_DEFAULT);
-			oI++; nI++; idx++; continue;
+			oI++;
+			nI++;
+			idx++;
+			continue;
 		}
 
 		// Collect del/add blocks
 		const dels: Array<{ l: DiffLine; hl: string }> = [];
 		while (idx < vis.length && vis[idx].type === "del") {
 			dels.push({ l: vis[idx], hl: oldHL[oI] ?? vis[idx].content });
-			oI++; idx++;
+			oI++;
+			idx++;
 		}
 		const adds: Array<{ l: DiffLine; hl: string }> = [];
 		while (idx < vis.length && vis[idx].type === "add") {
 			adds.push({ l: vis[idx], hl: newHL[nI] ?? vis[idx].content });
-			nI++; idx++;
+			nI++;
+			idx++;
 		}
 
 		// 1:1 paired → word diff emphasis
@@ -658,7 +772,12 @@ async function renderUnified(diff: ParsedDiff, language: BundledLanguage | undef
 // Split view (auto-fallback to unified when narrow)
 // ---------------------------------------------------------------------------
 
-async function renderSplit(diff: ParsedDiff, language: BundledLanguage | undefined, max = MAX_PREVIEW_LINES, dc: DiffColors = DEFAULT_DIFF_COLORS): Promise<string> {
+async function renderSplit(
+	diff: ParsedDiff,
+	language: BundledLanguage | undefined,
+	max = MAX_PREVIEW_LINES,
+	dc: DiffColors = DEFAULT_DIFF_COLORS,
+): Promise<string> {
 	const tw = termW();
 	if (!shouldUseSplit(diff, tw, max)) return renderUnified(diff, language, max, dc);
 	if (!diff.lines.length) return "";
@@ -669,23 +788,35 @@ async function renderSplit(diff: ParsedDiff, language: BundledLanguage | undefin
 	let i = 0;
 	while (i < diff.lines.length) {
 		const l = diff.lines[i];
-		if (l.type === "sep" || l.type === "ctx") { rows.push({ left: l, right: l }); i++; continue; }
-		const dels: DiffLine[] = [], adds: DiffLine[] = [];
-		while (i < diff.lines.length && diff.lines[i].type === "del") { dels.push(diff.lines[i]); i++; }
-		while (i < diff.lines.length && diff.lines[i].type === "add") { adds.push(diff.lines[i]); i++; }
+		if (l.type === "sep" || l.type === "ctx") {
+			rows.push({ left: l, right: l });
+			i++;
+			continue;
+		}
+		const dels: DiffLine[] = [],
+			adds: DiffLine[] = [];
+		while (i < diff.lines.length && diff.lines[i].type === "del") {
+			dels.push(diff.lines[i]);
+			i++;
+		}
+		while (i < diff.lines.length && diff.lines[i].type === "add") {
+			adds.push(diff.lines[i]);
+			i++;
+		}
 		const n = Math.max(dels.length, adds.length);
 		for (let j = 0; j < n; j++) rows.push({ left: dels[j] ?? null, right: adds[j] ?? null });
 	}
 
 	const vis = rows.slice(0, max);
 	const half = Math.floor((tw - 1) / 2); // -1 for center divider
-	const nw = Math.max(2, String(Math.max(...diff.lines.map(l => l.oldNum ?? l.newNum ?? 0), 0)).length);
+	const nw = Math.max(2, String(Math.max(...diff.lines.map((l) => l.oldNum ?? l.newNum ?? 0), 0)).length);
 	const gw = nw + 5; // border + num + sign + sp + │ + sp
 	const cw = Math.max(12, half - gw);
 	const canHL = diff.chars <= MAX_HL_CHARS && vis.length * 2 <= MAX_RENDER_LINES * 2;
 
 	// Build separate code blocks per side
-	const leftSrc: string[] = [], rightSrc: string[] = [];
+	const leftSrc: string[] = [],
+		rightSrc: string[] = [];
 	for (const r of vis) {
 		if (r.left && r.left.type !== "sep") leftSrc.push(r.left.content);
 		if (r.right && r.right.type !== "sep") rightSrc.push(r.right.content);
@@ -694,13 +825,19 @@ async function renderSplit(diff: ParsedDiff, language: BundledLanguage | undefin
 		? await Promise.all([hlBlock(leftSrc.join("\n"), language), hlBlock(rightSrc.join("\n"), language)])
 		: [leftSrc, rightSrc];
 
-	let lI = 0, rI = 0;
+	let lI = 0,
+		rI = 0;
 	let stripeRow = 0; // tracks row index for diagonal stripe offset
 
 	// Returns { gutter, contGutter, body } for wrapping composition
 	type HalfResult = { gutter: string; contGutter: string; bodyRows: string[] };
 
-	function half_build(line: DiffLine | null, hl: string, ranges: Array<[number, number]> | null, side: "left" | "right"): HalfResult {
+	function half_build(
+		line: DiffLine | null,
+		hl: string,
+		ranges: Array<[number, number]> | null,
+		side: "left" | "right",
+	): HalfResult {
 		// Empty filler — diagonal stripes
 		if (!line) {
 			const gw2 = nw + 2; // number + sign + space before │
@@ -716,12 +853,13 @@ async function renderSplit(diff: ParsedDiff, language: BundledLanguage | undefin
 			return { gutter: g, contGutter: g, bodyRows: [`${FG_DIM}${fit(label, cw)}${RST}`] };
 		}
 
-		const isDel = line.type === "del", isAdd = line.type === "add";
+		const isDel = line.type === "del",
+			isAdd = line.type === "add";
 		const gBg = isDel ? BG_GUTTER_DEL : isAdd ? BG_GUTTER_ADD : BG_DEFAULT;
 		const cBg = isDel ? BG_DEL : isAdd ? BG_ADD : BG_DEFAULT;
 		const sFg = isDel ? dc.fgDel : isAdd ? dc.fgAdd : dc.fgCtx;
 		const sign = isDel ? "-" : isAdd ? "+" : " ";
-		const num = isDel ? line.oldNum : isAdd ? line.newNum : (side === "left" ? line.oldNum : line.newNum);
+		const num = isDel ? line.oldNum : isAdd ? line.newNum : side === "left" ? line.oldNum : line.newNum;
 
 		// Border bar + colored line numbers for changed lines
 		const borderFg = isDel ? dc.fgDel : isAdd ? dc.fgAdd : "";
@@ -751,7 +889,8 @@ async function renderSplit(diff: ParsedDiff, language: BundledLanguage | undefin
 	out.push(`${rule(half)}${FG_RULE}┊${RST}${rule(half)}`);
 
 	for (const r of vis) {
-		const leftLine = r.left, rightLine = r.right;
+		const leftLine = r.left,
+			rightLine = r.right;
 		const paired = leftLine && rightLine && leftLine.type === "del" && rightLine.type === "add";
 		const wd = paired ? wordDiffAnalysis(leftLine.content, rightLine.content) : null;
 
@@ -764,12 +903,13 @@ async function renderSplit(diff: ParsedDiff, language: BundledLanguage | undefin
 			rResult = half_build(rightLine, rhl, wd.newRanges, "right");
 		} else if (paired && wd && wd.similarity >= WORD_DIFF_MIN_SIM && !canHL) {
 			const pwd = plainWordDiff(leftLine.content, rightLine.content);
-			lI++; rI++;
+			lI++;
+			rI++;
 			lResult = half_build(leftLine, pwd.old, null, "left");
 			rResult = half_build(rightLine, pwd.new, null, "right");
 		} else {
-			const lhl = (leftLine && leftLine.type !== "sep") ? (leftHL[lI++] ?? leftLine?.content ?? "") : "";
-			const rhl = (rightLine && rightLine.type !== "sep") ? (rightHL[rI++] ?? rightLine?.content ?? "") : "";
+			const lhl = leftLine && leftLine.type !== "sep" ? (leftHL[lI++] ?? leftLine?.content ?? "") : "";
+			const rhl = rightLine && rightLine.type !== "sep" ? (rightHL[rI++] ?? rightLine?.content ?? "") : "";
 			lResult = half_build(leftLine, lhl, null, "left");
 			rResult = half_build(rightLine, rhl, null, "right");
 		}
@@ -782,7 +922,8 @@ async function renderSplit(diff: ParsedDiff, language: BundledLanguage | undefin
 			const lg = row === 0 ? lResult.gutter : lResult.contGutter;
 			const rg = row === 0 ? rResult.gutter : rResult.contGutter;
 			const lb = lResult.bodyRows[row] ?? (leftIsEmpty ? stripes(cw, stripeRow) : `${BG_EMPTY}${" ".repeat(cw)}${RST}`);
-			const rb = rResult.bodyRows[row] ?? (rightIsEmpty ? stripes(cw, stripeRow) : `${BG_EMPTY}${" ".repeat(cw)}${RST}`);
+			const rb =
+				rResult.bodyRows[row] ?? (rightIsEmpty ? stripes(cw, stripeRow) : `${BG_EMPTY}${" ".repeat(cw)}${RST}`);
 			out.push(`${lg}${lb}${DIVIDER}${rg}${rb}`);
 			stripeRow++;
 		}
@@ -813,7 +954,9 @@ export default function diffRendererExtension(pi: any): void {
 		createWriteTool = sdk.createWriteTool;
 		createEditTool = sdk.createEditTool;
 		TextComponent = require("@mariozechner/pi-tui").Text;
-	} catch { return; }
+	} catch {
+		return;
+	}
 	if (!createWriteTool || !createEditTool || !TextComponent) return;
 
 	const cwd = process.cwd();
@@ -833,7 +976,11 @@ export default function diffRendererExtension(pi: any): void {
 		async execute(tid: string, params: any, sig: any, upd: any, ctx: any) {
 			const fp = params.path ?? params.file_path ?? "";
 			let old: string | null = null;
-			try { if (fp && existsSync(fp)) old = readFileSync(fp, "utf-8"); } catch { old = null; }
+			try {
+				if (fp && existsSync(fp)) old = readFileSync(fp, "utf-8");
+			} catch {
+				old = null;
+			}
 
 			const result = await origWrite.execute(tid, params, sig, upd, ctx);
 			const content = params.content ?? "";
@@ -873,16 +1020,18 @@ export default function diffRendererExtension(pi: any): void {
 					ctx.state._previewKey = previewKey;
 					ctx.state._previewText = hdr;
 					const lg = lang(fp);
-					hlBlock(args.content, lg).then((lines: string[]) => {
-						if (ctx.state._previewKey !== previewKey) return;
-						const maxShow = ctx.expanded ? lines.length : 16;
-						const preview = lines.slice(0, maxShow).join("\n");
-						const rem = lines.length - maxShow;
-						let out = `${hdr}\n\n${preview}`;
-						if (rem > 0) out += `\n${theme.fg("muted", `… (${rem} more lines, ${lines.length} total)`)}`;
-						ctx.state._previewText = out;
-						ctx.invalidate();
-					}).catch(() => {});
+					hlBlock(args.content, lg)
+						.then((lines: string[]) => {
+							if (ctx.state._previewKey !== previewKey) return;
+							const maxShow = ctx.expanded ? lines.length : 16;
+							const preview = lines.slice(0, maxShow).join("\n");
+							const rem = lines.length - maxShow;
+							let out = `${hdr}\n\n${preview}`;
+							if (rem > 0) out += `\n${theme.fg("muted", `… (${rem} more lines, ${lines.length} total)`)}`;
+							ctx.state._previewText = out;
+							ctx.invalidate();
+						})
+						.catch(() => {});
 				}
 				text.setText(ctx.state._previewText ?? hdr);
 				return text;
@@ -895,7 +1044,11 @@ export default function diffRendererExtension(pi: any): void {
 		renderResult(result: any, _opt: any, theme: any, ctx: any) {
 			const text = ctx.lastComponent ?? new TextComponent("", 0, 0);
 			if (ctx.isError) {
-				const e = result.content?.filter((c: any) => c.type === "text").map((c: any) => c.text || "").join("\n") ?? "Error";
+				const e =
+					result.content
+						?.filter((c: any) => c.type === "text")
+						.map((c: any) => c.text || "")
+						.join("\n") ?? "Error";
 				text.setText(`\n${theme.fg("error", e)}`);
 				return text;
 			}
@@ -907,15 +1060,17 @@ export default function diffRendererExtension(pi: any): void {
 					ctx.state._wdk = key;
 					ctx.state._wdt = `  ${d.summary}\n${theme.fg("muted", "  rendering diff…")}`;
 					const dc = resolveDiffColors(theme);
-					renderSplit(d.diff, d.language, MAX_RENDER_LINES, dc).then((rendered: string) => {
-						if (ctx.state._wdk !== key) return;
-						ctx.state._wdt = `  ${d.summary}\n${rendered}`;
-						ctx.invalidate();
-					}).catch(() => {
-						if (ctx.state._wdk !== key) return;
-						ctx.state._wdt = `  ${d.summary}`;
-						ctx.invalidate();
-					});
+					renderSplit(d.diff, d.language, MAX_RENDER_LINES, dc)
+						.then((rendered: string) => {
+							if (ctx.state._wdk !== key) return;
+							ctx.state._wdt = `  ${d.summary}\n${rendered}`;
+							ctx.invalidate();
+						})
+						.catch(() => {
+							if (ctx.state._wdk !== key) return;
+							ctx.state._wdt = `  ${d.summary}`;
+							ctx.invalidate();
+						});
 				}
 				text.setText(ctx.state._wdt ?? `  ${d.summary}`);
 				return text;
@@ -932,16 +1087,18 @@ export default function diffRendererExtension(pi: any): void {
 					ctx.state._nft = `  ${theme.fg("success", `✓ new file (${lineCount} lines)`)}`;
 					const lg = lang(fp);
 					if (rawContent) {
-						hlBlock(rawContent, lg).then((hlLines: string[]) => {
-							if (ctx.state._nfk !== pk) return;
-							const maxShow = ctx.expanded ? hlLines.length : 12;
-							const preview = hlLines.slice(0, maxShow).join("\n");
-							const rem = hlLines.length - maxShow;
-							let out = `  ${theme.fg("success", `✓ new file (${lineCount} lines)`)}\n${preview}`;
-							if (rem > 0) out += `\n${theme.fg("muted", `  … ${rem} more lines`)}`;
-							ctx.state._nft = out;
-							ctx.invalidate();
-						}).catch(() => {});
+						hlBlock(rawContent, lg)
+							.then((hlLines: string[]) => {
+								if (ctx.state._nfk !== pk) return;
+								const maxShow = ctx.expanded ? hlLines.length : 12;
+								const preview = hlLines.slice(0, maxShow).join("\n");
+								const rem = hlLines.length - maxShow;
+								let out = `  ${theme.fg("success", `✓ new file (${lineCount} lines)`)}\n${preview}`;
+								if (rem > 0) out += `\n${theme.fg("muted", `  … ${rem} more lines`)}`;
+								ctx.state._nft = out;
+								ctx.invalidate();
+							})
+							.catch(() => {});
 					}
 				}
 				text.setText(ctx.state._nft ?? `  ${theme.fg("success", `✓ new file (${lineCount} lines)`)}`);
@@ -977,7 +1134,9 @@ export default function diffRendererExtension(pi: any): void {
 						const idx = f.indexOf(newText);
 						if (idx >= 0) editLine = f.slice(0, idx).split("\n").length;
 					}
-				} catch { editLine = 0; }
+				} catch {
+					editLine = 0;
+				}
 				const diff = parseDiff(oldText, newText);
 				(result as any).details = { _type: "editInfo", summary: summarize(diff.added, diff.removed), editLine };
 			}
@@ -1003,17 +1162,19 @@ export default function diffRendererExtension(pi: any): void {
 				const lg = lang(fp);
 				const diff = parseDiff(oldText, newText);
 				const dc = resolveDiffColors(theme);
-				renderSplit(diff, lg, MAX_PREVIEW_LINES, dc).then((rendered) => {
-					if (ctx.state._pk !== pk) return;
-					ctx.state._pt = `${hdr}\n${summarize(diff.added, diff.removed)}\n${rendered}`;
-					ctx.invalidate();
-				}).catch(() => {
-					if (ctx.state._pk !== pk) return;
-					// Fallback: plain word diff
-					const diff2 = parseDiff(oldText, newText);
-					ctx.state._pt = `${hdr}  ${summarize(diff2.added, diff2.removed)}`;
-					ctx.invalidate();
-				});
+				renderSplit(diff, lg, MAX_PREVIEW_LINES, dc)
+					.then((rendered) => {
+						if (ctx.state._pk !== pk) return;
+						ctx.state._pt = `${hdr}\n${summarize(diff.added, diff.removed)}\n${rendered}`;
+						ctx.invalidate();
+					})
+					.catch(() => {
+						if (ctx.state._pk !== pk) return;
+						// Fallback: plain word diff
+						const diff2 = parseDiff(oldText, newText);
+						ctx.state._pt = `${hdr}  ${summarize(diff2.added, diff2.removed)}`;
+						ctx.invalidate();
+					});
 			}
 
 			text.setText(ctx.state._pt ?? hdr);
@@ -1023,7 +1184,11 @@ export default function diffRendererExtension(pi: any): void {
 		renderResult(result: any, _opt: any, theme: any, ctx: any) {
 			const text = ctx.lastComponent ?? new TextComponent("", 0, 0);
 			if (ctx.isError) {
-				const e = result.content?.filter((c: any) => c.type === "text").map((c: any) => c.text || "").join("\n") ?? "Error";
+				const e =
+					result.content
+						?.filter((c: any) => c.type === "text")
+						.map((c: any) => c.text || "")
+						.join("\n") ?? "Error";
 				text.setText(`\n${theme.fg("error", e)}`);
 				return text;
 			}
