@@ -172,7 +172,11 @@ function deriveBgFromFg(fgAnsi: string, intensity: number): string {
 /** Mix an accent color into a base color at the given intensity (0.0–1.0).
  *  Returns an ANSI 24-bit background escape. Used to derive diff backgrounds
  *  that blend with the tool box background (toolSuccessBg). */
-function mixBg(base: { r: number; g: number; b: number }, accent: { r: number; g: number; b: number }, intensity: number): string {
+function mixBg(
+	base: { r: number; g: number; b: number },
+	accent: { r: number; g: number; b: number },
+	intensity: number,
+): string {
 	const r = Math.round(base.r + (accent.r - base.r) * intensity);
 	const g = Math.round(base.g + (accent.g - base.g) * intensity);
 	const b = Math.round(base.b + (accent.b - base.b) * intensity);
@@ -207,15 +211,17 @@ function autoDeriveBgFromTheme(theme: any): void {
 					base = parsed;
 					BG_BASE = bgAnsi;
 				}
-			} catch { /* no toolSuccessBg — use black */ }
+			} catch {
+				/* no toolSuccessBg — use black */
+			}
 		}
 
 		// Line backgrounds — subtle accent mixed into base (8–10%)
 		BG_ADD = mixBg(base, addRgb, 0.08);
-		BG_DEL = mixBg(base, delRgb, 0.10);
+		BG_DEL = mixBg(base, delRgb, 0.1);
 
 		// Word-level highlights — more visible (20–22%)
-		BG_ADD_W = mixBg(base, addRgb, 0.20);
+		BG_ADD_W = mixBg(base, addRgb, 0.2);
 		BG_DEL_W = mixBg(base, delRgb, 0.22);
 
 		// Gutters — subtler than lines (5–6%)
@@ -238,10 +244,7 @@ function autoDeriveBgFromTheme(theme: any): void {
 
 /** Load diff theme config from .pi/settings.json (project-level, then global). */
 function loadDiffConfig(): DiffUserConfig {
-	const paths = [
-		`${process.cwd()}/.pi/settings.json`,
-		`${process.env.HOME ?? ""}/.pi/settings.json`,
-	];
+	const paths = [`${process.cwd()}/.pi/settings.json`, `${process.env.HOME ?? ""}/.pi/settings.json`];
 	for (const p of paths) {
 		try {
 			if (existsSync(p)) {
@@ -274,32 +277,66 @@ function applyDiffPalette(): void {
 	const applyBg = (envName: string | null, key: string, presetVal: string | undefined, set: (v: string) => void) => {
 		if (envName && process.env[envName]) return; // env override wins
 		const hex = ov[key] ?? presetVal;
-		if (hex) { const a = hexToBgAnsi(hex); if (a) set(a); }
+		if (hex) {
+			const a = hexToBgAnsi(hex);
+			if (a) set(a);
+		}
 	};
 	// Helper: apply a hex fg color if not env-overridden
 	const applyFg = (envName: string | null, key: string, presetVal: string | undefined, set: (v: string) => void) => {
 		if (envName && process.env[envName]) return;
 		const hex = ov[key] ?? presetVal;
-		if (hex) { const a = hexToFgAnsi(hex); if (a) set(a); }
+		if (hex) {
+			const a = hexToFgAnsi(hex);
+			if (a) set(a);
+		}
 	};
 
 	// --- Apply backgrounds ---
-	applyBg("DIFF_BG_ADD", "bgAdd", preset?.bgAdd, (v) => { BG_ADD = v; });
-	applyBg("DIFF_BG_DEL", "bgDel", preset?.bgDel, (v) => { BG_DEL = v; });
-	applyBg("DIFF_BG_ADD_HL", "bgAddHighlight", preset?.bgAddHighlight, (v) => { BG_ADD_W = v; });
-	applyBg("DIFF_BG_DEL_HL", "bgDelHighlight", preset?.bgDelHighlight, (v) => { BG_DEL_W = v; });
-	applyBg("DIFF_BG_GUTTER_ADD", "bgGutterAdd", preset?.bgGutterAdd, (v) => { BG_GUTTER_ADD = v; });
-	applyBg("DIFF_BG_GUTTER_DEL", "bgGutterDel", preset?.bgGutterDel, (v) => { BG_GUTTER_DEL = v; });
-	applyBg(null, "bgEmpty", preset?.bgEmpty, (v) => { BG_EMPTY = v; });
+	applyBg("DIFF_BG_ADD", "bgAdd", preset?.bgAdd, (v) => {
+		BG_ADD = v;
+	});
+	applyBg("DIFF_BG_DEL", "bgDel", preset?.bgDel, (v) => {
+		BG_DEL = v;
+	});
+	applyBg("DIFF_BG_ADD_HL", "bgAddHighlight", preset?.bgAddHighlight, (v) => {
+		BG_ADD_W = v;
+	});
+	applyBg("DIFF_BG_DEL_HL", "bgDelHighlight", preset?.bgDelHighlight, (v) => {
+		BG_DEL_W = v;
+	});
+	applyBg("DIFF_BG_GUTTER_ADD", "bgGutterAdd", preset?.bgGutterAdd, (v) => {
+		BG_GUTTER_ADD = v;
+	});
+	applyBg("DIFF_BG_GUTTER_DEL", "bgGutterDel", preset?.bgGutterDel, (v) => {
+		BG_GUTTER_DEL = v;
+	});
+	applyBg(null, "bgEmpty", preset?.bgEmpty, (v) => {
+		BG_EMPTY = v;
+	});
 
 	// --- Apply foregrounds ---
-	applyFg("DIFF_FG_ADD", "fgAdd", preset?.fgAdd, (v) => { FG_ADD = v; });
-	applyFg("DIFF_FG_DEL", "fgDel", preset?.fgDel, (v) => { FG_DEL = v; });
-	applyFg(null, "fgDim", preset?.fgDim, (v) => { FG_DIM = v; });
-	applyFg(null, "fgLnum", preset?.fgLnum, (v) => { FG_LNUM = v; });
-	applyFg(null, "fgRule", preset?.fgRule, (v) => { FG_RULE = v; });
-	applyFg(null, "fgStripe", preset?.fgStripe, (v) => { FG_STRIPE = v; });
-	applyFg(null, "fgSafeMuted", preset?.fgSafeMuted, (v) => { FG_SAFE_MUTED = v; });
+	applyFg("DIFF_FG_ADD", "fgAdd", preset?.fgAdd, (v) => {
+		FG_ADD = v;
+	});
+	applyFg("DIFF_FG_DEL", "fgDel", preset?.fgDel, (v) => {
+		FG_DEL = v;
+	});
+	applyFg(null, "fgDim", preset?.fgDim, (v) => {
+		FG_DIM = v;
+	});
+	applyFg(null, "fgLnum", preset?.fgLnum, (v) => {
+		FG_LNUM = v;
+	});
+	applyFg(null, "fgRule", preset?.fgRule, (v) => {
+		FG_RULE = v;
+	});
+	applyFg(null, "fgStripe", preset?.fgStripe, (v) => {
+		FG_STRIPE = v;
+	});
+	applyFg(null, "fgSafeMuted", preset?.fgSafeMuted, (v) => {
+		FG_SAFE_MUTED = v;
+	});
 
 	// --- Shiki syntax theme ---
 	const shiki = ov.shikiTheme ?? preset?.shikiTheme;
@@ -441,7 +478,9 @@ function resolveDiffColors(theme?: any): DiffColors {
 				BG_BASE = bgAnsi;
 				RST = `\x1b[0m${BG_BASE}`;
 			}
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 	}
 
 	// Auto-derive bg colors from theme on first render (if no explicit preset/overrides)
@@ -1424,66 +1463,128 @@ export default function diffRendererExtension(pi: any): void {
 
 	const origEdit = createEditTool(cwd);
 
+	function getEditOperations(input: any): Array<{ oldText: string; newText: string }> {
+		if (Array.isArray(input?.edits)) {
+			return input.edits
+				.map((edit: any) => ({
+					oldText:
+						typeof edit?.oldText === "string" ? edit.oldText : typeof edit?.old_text === "string" ? edit.old_text : "",
+					newText:
+						typeof edit?.newText === "string" ? edit.newText : typeof edit?.new_text === "string" ? edit.new_text : "",
+				}))
+				.filter((edit: { oldText: string; newText: string }) => edit.oldText && edit.oldText !== edit.newText);
+		}
+
+		const oldText =
+			typeof input?.oldText === "string" ? input.oldText : typeof input?.old_text === "string" ? input.old_text : "";
+		const newText =
+			typeof input?.newText === "string" ? input.newText : typeof input?.new_text === "string" ? input.new_text : "";
+		return oldText && oldText !== newText ? [{ oldText, newText }] : [];
+	}
+
+	function summarizeEditOperations(operations: Array<{ oldText: string; newText: string }>) {
+		const diffs = operations.map((edit) => parseDiff(edit.oldText, edit.newText));
+		const totalAdded = diffs.reduce((sum, diff) => sum + diff.added, 0);
+		const totalRemoved = diffs.reduce((sum, diff) => sum + diff.removed, 0);
+		return {
+			diffs,
+			totalAdded,
+			totalRemoved,
+			summary: summarize(totalAdded, totalRemoved),
+		};
+	}
+
 	pi.registerTool({
 		...origEdit,
 		name: "edit",
 
 		async execute(tid: string, params: any, sig: any, upd: any, ctx: any) {
 			const fp = params.path ?? params.file_path ?? "";
-			const oldText = params.oldText ?? params.old_text ?? "";
-			const newText = params.newText ?? params.new_text ?? "";
-
+			const operations = getEditOperations(params);
 			const result = await origEdit.execute(tid, params, sig, upd, ctx);
 
-			if (oldText && oldText !== newText) {
+			if (operations.length === 0) return result;
+
+			const { diffs, summary } = summarizeEditOperations(operations);
+			if (operations.length === 1) {
 				let editLine = 0;
 				try {
 					if (fp && existsSync(fp)) {
 						const f = readFileSync(fp, "utf-8");
-						const idx = f.indexOf(newText);
+						const idx = f.indexOf(operations[0].newText);
 						if (idx >= 0) editLine = f.slice(0, idx).split("\n").length;
 					}
 				} catch {
 					editLine = 0;
 				}
-				const diff = parseDiff(oldText, newText);
-				(result as any).details = { _type: "editInfo", summary: summarize(diff.added, diff.removed), editLine };
+				(result as any).details = { _type: "editInfo", summary, editLine };
+				return result;
 			}
+
+			(result as any).details = {
+				_type: "multiEditInfo",
+				summary,
+				editCount: operations.length,
+				diffLineCount: diffs.reduce((sum, diff) => sum + diff.lines.length, 0),
+			};
 			return result;
 		},
 
 		renderCall(args: any, theme: any, ctx: any) {
 			const fp = args?.path ?? args?.file_path ?? "";
-			const oldText = args?.oldText ?? args?.old_text ?? "";
-			const newText = args?.newText ?? args?.new_text ?? "";
+			const operations = getEditOperations(args);
 			const text = ctx.lastComponent ?? new TextComponent("", 0, 0);
 			const hdr = `${theme.fg("toolTitle", theme.bold("edit"))} ${theme.fg("accent", sp(fp))}`;
 
-			if (!(ctx.argsComplete && oldText && oldText !== newText)) {
+			if (!(ctx.argsComplete && operations.length > 0)) {
 				text.setText(hdr);
 				return text;
 			}
 
-			const pk = JSON.stringify({ fp, oldText, newText, w: termW() });
+			const pk = JSON.stringify({ fp, operations, w: termW() });
 			if (ctx.state._pk !== pk) {
 				ctx.state._pk = pk;
 				ctx.state._pt = `${hdr}  ${theme.fg("muted", "(rendering…)")}`;
 				const lg = lang(fp);
-				const diff = parseDiff(oldText, newText);
 				const dc = resolveDiffColors(theme);
-				renderSplit(diff, lg, MAX_PREVIEW_LINES, dc)
-					.then((rendered) => {
-						if (ctx.state._pk !== pk) return;
-						ctx.state._pt = `${hdr}\n${summarize(diff.added, diff.removed)}\n${rendered}`;
-						ctx.invalidate();
-					})
-					.catch(() => {
-						if (ctx.state._pk !== pk) return;
-						// Fallback: plain word diff
-						const diff2 = parseDiff(oldText, newText);
-						ctx.state._pt = `${hdr}  ${summarize(diff2.added, diff2.removed)}`;
-						ctx.invalidate();
-					});
+
+				if (operations.length === 1) {
+					const diff = parseDiff(operations[0].oldText, operations[0].newText);
+					renderSplit(diff, lg, MAX_PREVIEW_LINES, dc)
+						.then((rendered) => {
+							if (ctx.state._pk !== pk) return;
+							ctx.state._pt = `${hdr}\n${summarize(diff.added, diff.removed)}\n${rendered}`;
+							ctx.invalidate();
+						})
+						.catch(() => {
+							if (ctx.state._pk !== pk) return;
+							ctx.state._pt = `${hdr}  ${summarize(diff.added, diff.removed)}`;
+							ctx.invalidate();
+						});
+				} else {
+					const { diffs, summary } = summarizeEditOperations(operations);
+					const maxShown = Math.min(operations.length, 3);
+					const previewLines = Math.max(8, Math.floor(MAX_PREVIEW_LINES / maxShown));
+					Promise.all(
+						diffs.slice(0, maxShown).map((diff, index) =>
+							renderSplit(diff, lg, previewLines, dc)
+								.then((rendered) => `Edit ${index + 1}/${operations.length}\n${rendered}`)
+								.catch(() => `Edit ${index + 1}/${operations.length}  ${summarize(diff.added, diff.removed)}`),
+						),
+					)
+						.then((sections) => {
+							if (ctx.state._pk !== pk) return;
+							const remainder = operations.length - maxShown;
+							const suffix = remainder > 0 ? `\n${theme.fg("muted", `… ${remainder} more edit blocks`)}` : "";
+							ctx.state._pt = `${hdr}\n${operations.length} edits ${summary}\n\n${sections.join("\n\n")}${suffix}`;
+							ctx.invalidate();
+						})
+						.catch(() => {
+							if (ctx.state._pk !== pk) return;
+							ctx.state._pt = `${hdr}  ${operations.length} edits ${summary}`;
+							ctx.invalidate();
+						});
+				}
 			}
 
 			text.setText(ctx.state._pt ?? hdr);
@@ -1505,6 +1606,14 @@ export default function diffRendererExtension(pi: any): void {
 				const { summary: s, editLine } = result.details;
 				const loc = editLine > 0 ? ` ${theme.fg("muted", `at line ${editLine}`)}` : "";
 				const content = `  ${s}${loc}`;
+				const vis = content.replace(ANSI_RE, "").length;
+				const pad = Math.max(0, termW() - vis);
+				text.setText(`${content}${" ".repeat(pad)}`);
+				return text;
+			}
+			if (result.details?._type === "multiEditInfo") {
+				const { summary: s, editCount, diffLineCount } = result.details;
+				const content = `  ${editCount} edits ${s}${typeof diffLineCount === "number" ? ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}` : ""}`;
 				const vis = content.replace(ANSI_RE, "").length;
 				const pad = Math.max(0, termW() - vis);
 				text.setText(`${content}${" ".repeat(pad)}`);

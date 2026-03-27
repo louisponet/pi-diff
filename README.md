@@ -43,7 +43,7 @@ pi -e ./src/index.ts
 
 ## How It Works
 
-pi-diff wraps the built-in `write` and `edit` tools from the pi SDK. When the agent writes or edits a file:
+pi-diff wraps the built-in `write` and `edit` tools from the pi SDK, including single-edit and multi-edit `edit` calls. When the agent writes or edits a file:
 
 1. **Before the write** — reads the existing file content
 2. **Delegates** to the original SDK tool (file is actually written)
