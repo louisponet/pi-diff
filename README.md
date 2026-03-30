@@ -1,6 +1,6 @@
 # pi-diff
 
-[![npm version](https://img.shields.io/npm/v/@buddingnewinsights/pi-diff)](https://www.npmjs.com/package/@buddingnewinsights/pi-diff)
+[![npm version](https://img.shields.io/npm/v/@heyhuynhgiabuu/pi-diff)](https://www.npmjs.com/package/@heyhuynhgiabuu/pi-diff)
 [![GitHub release](https://img.shields.io/github/v/release/buddingnewinsights/pi-diff)](https://github.com/buddingnewinsights/pi-diff/releases/latest)
 
 A [pi](https://pi.dev) extension that replaces the default `write` and `edit` tool output with **Shiki-powered, syntax-highlighted diffs** — side-by-side split view, unified stacked view, and word-level change emphasis, all rendered directly in your terminal.
@@ -30,7 +30,7 @@ A [pi](https://pi.dev) extension that replaces the default `write` and `edit` to
 ## Install
 
 ```bash
-pi install npm:@buddingnewinsights/pi-diff
+pi install npm:@heyhuynhgiabuu/pi-diff
 ```
 
 Latest release: https://github.com/buddingnewinsights/pi-diff/releases/latest
@@ -224,7 +224,7 @@ src/
 The extension exports a `__testing` object for unit testing:
 
 ```typescript
-import { __testing } from "@buddingnewinsights/pi-diff";
+import { __testing } from "@heyhuynhgiabuu/pi-diff";
 
 const { parseDiff, renderSplit, renderUnified, normalizeShikiContrast } = __testing;
 ```
