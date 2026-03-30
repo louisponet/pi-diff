@@ -1,7 +1,7 @@
 # pi-diff
 
-[![npm version](https://img.shields.io/npm/v/@heyhuynhgiabuu/pi-diff)](https://www.npmjs.com/package/@heyhuynhgiabuu/pi-diff)
-[![GitHub release](https://img.shields.io/github/v/release/heyhuynhgiabuu/pi-diff)](https://github.com/heyhuynhgiabuu/pi-diff/releases/latest)
+[![npm version](https://img.shields.io/npm/v/@buddingnewinsights/pi-diff)](https://www.npmjs.com/package/@buddingnewinsights/pi-diff)
+[![GitHub release](https://img.shields.io/github/v/release/buddingnewinsights/pi-diff)](https://github.com/buddingnewinsights/pi-diff/releases/latest)
 
 A [pi](https://pi.dev) extension that replaces the default `write` and `edit` tool output with **Shiki-powered, syntax-highlighted diffs** — side-by-side split view, unified stacked view, and word-level change emphasis, all rendered directly in your terminal.
 
@@ -9,11 +9,11 @@ A [pi](https://pi.dev) extension that replaces the default `write` and `edit` to
 
 ### Unified view — stacked single-column diff
 
-<img width="700" alt="pi-diff unified view" src="https://github.com/heyhuynhgiabuu/pi-diff/raw/main/media/unified.png" />
+<img width="700" alt="pi-diff unified view" src="https://github.com/buddingnewinsights/pi-diff/raw/main/media/unified.png" />
 
 ### Split view — side-by-side comparison
 
-<img width="700" alt="pi-diff split view" src="https://github.com/heyhuynhgiabuu/pi-diff/raw/main/media/split.png" />
+<img width="700" alt="pi-diff split view" src="https://github.com/buddingnewinsights/pi-diff/raw/main/media/split.png" />
 
 ## Features
 
@@ -30,10 +30,10 @@ A [pi](https://pi.dev) extension that replaces the default `write` and `edit` to
 ## Install
 
 ```bash
-pi install npm:@heyhuynhgiabuu/pi-diff
+pi install npm:@buddingnewinsights/pi-diff
 ```
 
-Latest release: https://github.com/heyhuynhgiabuu/pi-diff/releases/latest
+Latest release: https://github.com/buddingnewinsights/pi-diff/releases/latest
 
 Or load directly for development:
 
@@ -224,7 +224,7 @@ src/
 The extension exports a `__testing` object for unit testing:
 
 ```typescript
-import { __testing } from "@heyhuynhgiabuu/pi-diff";
+import { __testing } from "@buddingnewinsights/pi-diff";
 
 const { parseDiff, renderSplit, renderUnified, normalizeShikiContrast } = __testing;
 ```
@@ -232,7 +232,7 @@ const { parseDiff, renderSplit, renderUnified, normalizeShikiContrast } = __test
 ## Development
 
 ```bash
-git clone https://github.com/heyhuynhgiabuu/pi-diff.git
+git clone https://github.com/buddingnewinsights/pi-diff.git
 cd pi-diff
 npm install
 npm run typecheck   # TypeScript validation
@@ -281,4 +281,4 @@ See the [pi docs](https://pi.dev) for the full extension API.
 
 ## License
 
-MIT — [huynhgiabuu](https://github.com/heyhuynhgiabuu)
+MIT — [huynhgiabuu](https://github.com/buddingnewinsights)

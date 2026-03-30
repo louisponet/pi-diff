@@ -2,7 +2,7 @@
  * pi-diff — Shiki-powered terminal diff renderer for pi.
  *
  * @module pi-diff
- * @see https://github.com/heyhuynhgiabuu/pi-diff
+ * @see https://github.com/buddingnewinsights/pi-diff
  *
  * Architecture (like OpenTUI / delta):
  *   1. Syntax-highlight full code blocks via Shiki → ANSI (fg-only codes)
