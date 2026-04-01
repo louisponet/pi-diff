@@ -21,8 +21,12 @@
  *   • Async rendering with invalidate() for non-blocking preview
  */
 
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { extname, relative } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 import { codeToANSI } from "@shikijs/cli";
 import * as Diff from "diff";
@@ -871,6 +875,75 @@ function parseDiff(oldContent: string, newContent: string, ctx = 3): ParsedDiff 
 }
 
 // ---------------------------------------------------------------------------
+// Git unified-diff parser
+//
+// Parses `git diff` output into per-file ParsedDiff objects that feed
+// directly into renderSplit / renderUnified.
+// ---------------------------------------------------------------------------
+
+interface GitFileDiff {
+	file: string;
+	status: "modified" | "added" | "deleted" | "renamed";
+	oldFile?: string;
+	diff: ParsedDiff;
+}
+
+function parseGitDiff(unifiedDiff: string): GitFileDiff[] {
+	const patches = Diff.parsePatch(unifiedDiff);
+	const results: GitFileDiff[] = [];
+
+	for (const patch of patches) {
+		const rawNew = patch.newFileName ?? "";
+		const rawOld = patch.oldFileName ?? "";
+		const newFile = rawNew.replace(/^b\//, "");
+		const oldFile = rawOld.replace(/^a\//, "");
+
+		const isDeleted = rawNew === "/dev/null";
+		const isNew = rawOld === "/dev/null";
+		const isRenamed = !isNew && !isDeleted && oldFile !== newFile;
+		const file = isDeleted ? oldFile : newFile;
+		const status: GitFileDiff["status"] = isNew ? "added" : isDeleted ? "deleted" : isRenamed ? "renamed" : "modified";
+
+		const lines: DiffLine[] = [];
+		let added = 0,
+			removed = 0,
+			chars = 0;
+
+		for (let hi = 0; hi < patch.hunks.length; hi++) {
+			if (hi > 0) {
+				const prev = patch.hunks[hi - 1];
+				const gap = patch.hunks[hi].oldStart - (prev.oldStart + prev.oldLines);
+				lines.push({ type: "sep", oldNum: null, newNum: gap > 0 ? gap : null, content: "" });
+			}
+			const h = patch.hunks[hi];
+			let oL = h.oldStart,
+				nL = h.newStart;
+			for (const raw of h.lines) {
+				if (raw === "\\ No newline at end of file") continue;
+				const ch = raw[0],
+					text = raw.slice(1);
+				chars += text.length;
+				if (ch === "+") {
+					lines.push({ type: "add", oldNum: null, newNum: nL++, content: text });
+					added++;
+				} else if (ch === "-") {
+					lines.push({ type: "del", oldNum: oL++, newNum: null, content: text });
+					removed++;
+				} else {
+					lines.push({ type: "ctx", oldNum: oL++, newNum: nL++, content: text });
+				}
+			}
+		}
+
+		if (lines.length > 0) {
+			results.push({ file, status, ...(isRenamed ? { oldFile } : {}), diff: { lines, added, removed, chars } });
+		}
+	}
+
+	return results;
+}
+
+// ---------------------------------------------------------------------------
 // Word diff + bg injection
 //
 // Key insight: Shiki's codeToANSI only emits fg codes (\x1b[38;...m and
@@ -1288,6 +1361,7 @@ async function renderSplit(
 export const __testing = {
 	normalizeShikiContrast,
 	parseDiff,
+	parseGitDiff,
 	renderSplit,
 	renderUnified,
 };
@@ -1620,6 +1694,171 @@ export default async function diffRendererExtension(pi: any): Promise<void> {
 				return text;
 			}
 			text.setText(`  ${theme.fg("dim", String(result?.content?.[0]?.text ?? "edited").slice(0, 120))}`);
+			return text;
+		},
+	});
+
+	// =======================================================================
+	// git_diff
+	// =======================================================================
+
+	pi.registerTool({
+		name: "git_diff",
+		description:
+			"Show git diff with syntax-highlighted side-by-side rendering. " +
+			"Displays working tree changes by default, or staged/committed changes with options.",
+		parameters: {
+			type: "object",
+			properties: {
+				ref: {
+					type: "string",
+					description:
+						'Git ref or range to diff. Examples: "HEAD~1" (last commit vs working tree), ' +
+						'"main..feature" (branch comparison), "HEAD~3..HEAD" (last 3 commits). ' +
+						"Omit for unstaged working tree changes.",
+				},
+				staged: {
+					type: "boolean",
+					description: "Show staged (cached) changes instead of unstaged. Equivalent to git diff --cached.",
+				},
+				path: {
+					type: "string",
+					description: "Filter diff to a specific file or directory path.",
+				},
+			},
+		},
+
+		async execute(_tid: string, params: any) {
+			const args = ["diff", "--no-color", "-U3"];
+			if (params.staged) args.push("--cached");
+			if (params.ref) args.push(...params.ref.split(/\s+/));
+			if (params.path) {
+				args.push("--");
+				args.push(params.path);
+			}
+
+			let stdout: string;
+			try {
+				const result = await execFileAsync("git", args, {
+					cwd,
+					maxBuffer: 10 * 1024 * 1024,
+					env: { ...process.env, GIT_PAGER: "" },
+				});
+				stdout = result.stdout;
+			} catch (err: any) {
+				// git diff exits 1 when there are differences (with --exit-code), but
+				// without --exit-code it exits 0. A real error has no stdout.
+				if (err.stdout) {
+					stdout = err.stdout;
+				} else {
+					const msg = err.stderr?.trim() || err.message || "git diff failed";
+					return { content: [{ type: "text", text: msg }], isError: true };
+				}
+			}
+
+			if (!stdout.trim()) {
+				const what = params.staged ? "staged" : params.ref ? `${params.ref}` : "working tree";
+				return {
+					content: [{ type: "text", text: `No changes in ${what}${params.path ? ` for ${params.path}` : ""}` }],
+					details: { _type: "gitDiffEmpty" },
+				};
+			}
+
+			const files = parseGitDiff(stdout);
+			const totalAdded = files.reduce((s, f) => s + f.diff.added, 0);
+			const totalRemoved = files.reduce((s, f) => s + f.diff.removed, 0);
+			const fileSummaries = files.map((f) => {
+				const badge =
+					f.status === "added" ? "[new]" : f.status === "deleted" ? "[del]" : f.status === "renamed" ? `[renamed from ${f.oldFile}]` : "";
+				return `  ${f.file} ${badge} +${f.diff.added} -${f.diff.removed}`;
+			});
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: `${files.length} file${files.length !== 1 ? "s" : ""} changed, +${totalAdded} -${totalRemoved}\n${fileSummaries.join("\n")}`,
+					},
+				],
+				details: { _type: "gitDiff", files, totalAdded, totalRemoved },
+			};
+		},
+
+		renderCall(args: any, theme: any, ctx: any) {
+			const text = ctx.lastComponent ?? new TextComponent("", 0, 0);
+			const parts = [theme.fg("toolTitle", theme.bold("git_diff"))];
+			if (args?.staged) parts.push(theme.fg("muted", "--staged"));
+			if (args?.ref) parts.push(theme.fg("accent", args.ref));
+			if (args?.path) parts.push(theme.fg("accent", sp(args.path)));
+			text.setText(parts.join(" "));
+			return text;
+		},
+
+		renderResult(result: any, _opt: any, theme: any, ctx: any) {
+			const text = ctx.lastComponent ?? new TextComponent("", 0, 0);
+
+			if (ctx.isError) {
+				const e =
+					result.content
+						?.filter((c: any) => c.type === "text")
+						.map((c: any) => c.text || "")
+						.join("\n") ?? "Error";
+				text.setText(`\n${theme.fg("error", e)}`);
+				return text;
+			}
+
+			if (result.details?._type === "gitDiffEmpty") {
+				text.setText(`  ${theme.fg("muted", result.content?.[0]?.text ?? "No changes")}`);
+				return text;
+			}
+
+			const details = result.details;
+			if (!details || details._type !== "gitDiff") {
+				text.setText(`  ${theme.fg("dim", String(result?.content?.[0]?.text ?? "done").slice(0, 120))}`);
+				return text;
+			}
+
+			const { files, totalAdded, totalRemoved } = details;
+			const topSummary = `  ${files.length} file${files.length !== 1 ? "s" : ""} ${summarize(totalAdded, totalRemoved)}`;
+
+			// Cache key includes file list + terminal width
+			const pk = JSON.stringify({ f: files.map((f: GitFileDiff) => f.file), w: termW() });
+			if (ctx.state._pk !== pk) {
+				ctx.state._pk = pk;
+				ctx.state._rendered = topSummary;
+
+				const dc = resolveDiffColors(theme);
+				const maxPerFile = Math.max(12, Math.floor(MAX_PREVIEW_LINES / Math.min(files.length, 4)));
+
+				Promise.all(
+					files.map(async (f: GitFileDiff) => {
+						const lg = lang(f.file);
+						const badge =
+							f.status === "added"
+								? ` ${theme.fg("success", "[new]")}`
+								: f.status === "deleted"
+									? ` ${theme.fg("error", "[deleted]")}`
+									: f.status === "renamed"
+										? ` ${theme.fg("warning", `[renamed from ${f.oldFile}]`)}`
+										: "";
+						const hdr = `${theme.fg("accent", f.file)}${badge}  ${summarize(f.diff.added, f.diff.removed)}`;
+						try {
+							const rendered = await renderSplit(f.diff, lg, maxPerFile, dc);
+							return `${hdr}\n${rendered}`;
+						} catch {
+							return hdr;
+						}
+					}),
+				)
+					.then((sections) => {
+						if (ctx.state._pk !== pk) return;
+						ctx.state._rendered = `${topSummary}\n\n${sections.join("\n\n")}`;
+						ctx.invalidate();
+					})
+					.catch(() => {});
+			}
+
+			text.setText(ctx.state._rendered ?? topSummary);
 			return text;
 		},
 	});
