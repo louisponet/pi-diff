@@ -1292,16 +1292,16 @@ export const __testing = {
 	renderUnified,
 };
 
-export default function diffRendererExtension(pi: any): void {
+export default async function diffRendererExtension(pi: any): Promise<void> {
 	// Apply diff theme palette from settings/presets before rendering
 	applyDiffPalette();
 
 	let createWriteTool: any, createEditTool: any, TextComponent: any;
 	try {
-		const sdk = require("@mariozechner/pi-coding-agent");
+		const sdk = await import("@mariozechner/pi-coding-agent");
 		createWriteTool = sdk.createWriteTool;
 		createEditTool = sdk.createEditTool;
-		TextComponent = require("@mariozechner/pi-tui").Text;
+		TextComponent = (await import("@mariozechner/pi-tui")).Text;
 	} catch {
 		return;
 	}
